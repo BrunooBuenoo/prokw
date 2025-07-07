@@ -7,13 +7,13 @@
           <p>Visão geral do sistema de gestão de equipamentos</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" @click="refreshData">
+          <button class="btn btn-secondary" @click="refreshData" :disabled="isRefreshing">
             <font-awesome-icon :icon="['fas', 'sync-alt']" :class="{ 'fa-spin': isRefreshing }" />
-            Atualizar
+            <span class="btn-text">Atualizar</span>
           </button>
           <button class="btn btn-primary" @click="$router.push('/equipamentos')">
             <font-awesome-icon :icon="['fas', 'plus']" />
-            Novo Equipamento
+            <span class="btn-text">Novo Equipamento</span>
           </button>
         </div>
       </div>
@@ -27,7 +27,7 @@
     </div>
     
     <div v-else class="dashboard-content">
-      <!-- Stats Cards -->
+      <!-- Main Stats Grid -->
       <div class="stats-grid">
         <StatsCard
           :icon="['fas', 'desktop']"
@@ -55,7 +55,7 @@
           :value="stats.warrantyExpiringSoon"
           variant="error"
           description="Próximos 30 dias"
-          :trend="-15"
+          :trend="warrantyTrend"
           :clickable="true"
         />
         
@@ -66,7 +66,7 @@
           variant="success"
           description="Manutenções realizadas"
           format="currency"
-          :trend="8"
+          :trend="costTrend"
           :clickable="true"
           @click="$router.push('/relatorios')"
         />
@@ -100,8 +100,8 @@
           :value="stats.totalUsers"
           variant="secondary"
           description="Usuários do sistema"
-          :clickable="true"
-          @click="$router.push('/usuarios')"
+          :clickable="canManageUsers"
+          @click="canManageUsers && $router.push('/usuarios')"
         />
       </div>
       
@@ -207,9 +207,9 @@
               <h3>Alertas do Sistema</h3>
               <p>Notificações importantes</p>
             </div>
-            <button class="btn btn-ghost btn-sm" @click="clearAllAlerts">
+            <button class="btn btn-ghost btn-sm" @click="clearAllAlerts" v-if="alerts.length > 0">
               <font-awesome-icon :icon="['fas', 'check']" />
-              Limpar Todos
+              <span class="btn-text">Limpar Todos</span>
             </button>
           </div>
           <div class="card-body">
@@ -299,35 +299,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useDashboard } from '../composables/useDashboard'
 import StatsCard from '../components/StatsCard.vue'
 import { 
   collection, 
-  getDocs, 
-  query, 
-  orderBy, 
+  onSnapshot,
+  query,
+  orderBy,
   limit,
   where,
-  onSnapshot
+  Unsubscribe
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
-const { canViewReports } = useAuth()
+const { canViewReports, canManageUsers } = useAuth()
 const { stats, recentMaintenances, alerts, isLoading, loadDashboardData } = useDashboard()
 
 const isRefreshing = ref(false)
 const selectedPeriod = ref('30')
+const warrantyTrend = ref(0)
+const costTrend = ref(0)
+
+// Real-time listeners
+let equipmentUnsubscribe: Unsubscribe | null = null
+let maintenanceUnsubscribe: Unsubscribe | null = null
+let storeUnsubscribe: Unsubscribe | null = null
+let companyUnsubscribe: Unsubscribe | null = null
+let userUnsubscribe: Unsubscribe | null = null
 
 const maxEquipmentCount = computed(() => {
   const counts = Object.values(stats.value.equipmentsByStore)
   return Math.max(...counts, 1)
 })
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('pt-BR', {
+const formatDate = (date: string | Date) => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  return dateObj.toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
@@ -374,84 +383,230 @@ const dismissAlert = (index: number) => {
   alerts.value.splice(index, 1)
 }
 
-// Firebase integration for real-time updates
+// Setup real-time listeners
 const setupRealtimeListeners = () => {
   // Listen to equipment changes
-  const equipmentQuery = query(collection(db, 'equipamentos'))
-  onSnapshot(equipmentQuery, (snapshot) => {
-    stats.value.totalEquipments = snapshot.size
-    
-    // Update equipment by store
-    const equipmentsByStore: Record<string, number> = {}
-    snapshot.docs.forEach(doc => {
-      const data = doc.data()
-      const store = data.store || 'Sem loja'
-      equipmentsByStore[store] = (equipmentsByStore[store] || 0) + 1
-    })
-    stats.value.equipmentsByStore = equipmentsByStore
-  })
+  equipmentUnsubscribe = onSnapshot(
+    query(collection(db, 'equipments')),
+    (snapshot) => {
+      stats.value.totalEquipments = snapshot.size
+      
+      // Update equipment by store
+      const equipmentsByStore: Record<string, number> = {}
+      snapshot.docs.forEach(doc => {
+        const data = doc.data()
+        const store = data.store || 'Sem loja'
+        equipmentsByStore[store] = (equipmentsByStore[store] || 0) + 1
+      })
+      stats.value.equipmentsByStore = equipmentsByStore
+      
+      // Count in maintenance
+      const inMaintenance = snapshot.docs.filter(doc => doc.data().status === 'manutencao')
+      stats.value.inMaintenanceCount = inMaintenance.length
+      
+      // Count warranty expiring soon (next 30 days)
+      const today = new Date()
+      const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const expiringSoon = snapshot.docs.filter(doc => {
+        const warrantyUntil = doc.data().warrantyUntil
+        if (!warrantyUntil) return false
+        const warrantyDate = new Date(warrantyUntil)
+        return warrantyDate >= today && warrantyDate <= thirtyDaysFromNow
+      })
+      stats.value.warrantyExpiringSoon = expiringSoon.length
+      
+      // Generate alerts based on data
+      generateAlerts()
+    },
+    (error) => {
+      console.error('Error listening to equipment changes:', error)
+    }
+  )
   
   // Listen to maintenance changes
-  const maintenanceQuery = query(
-    collection(db, 'manutencoes'),
-    orderBy('createdAt', 'desc'),
-    limit(5)
+  maintenanceUnsubscribe = onSnapshot(
+    query(
+      collection(db, 'maintenances'),
+      orderBy('createdAt', 'desc'),
+      limit(5)
+    ),
+    async (snapshot) => {
+      const maintenancesList = await Promise.all(
+        snapshot.docs.map(async (doc) => {
+          const data = doc.data()
+          
+          // Get equipment name
+          let equipmentName = 'Equipamento não identificado'
+          if (data.equipmentId) {
+            try {
+              const equipmentQuery = query(
+                collection(db, 'equipments'),
+                where('__name__', '==', data.equipmentId)
+              )
+              // For simplicity, we'll use the equipment ID as name for now
+              // In a real implementation, you'd fetch the actual equipment document
+              equipmentName = data.equipmentId
+            } catch (error) {
+              console.error('Error fetching equipment name:', error)
+            }
+          }
+          
+          return {
+            id: doc.id,
+            ...data,
+            equipmentName,
+            startDate: data.startDate?.toDate?.() || new Date(),
+            createdAt: data.createdAt?.toDate?.() || new Date(),
+          }
+        })
+      )
+      
+      recentMaintenances.value = maintenancesList
+      
+      // Calculate monthly maintenance cost
+      const currentMonth = new Date().getMonth()
+      const currentYear = new Date().getFullYear()
+      const monthlyMaintenances = snapshot.docs.filter(doc => {
+        const createdAt = doc.data().createdAt?.toDate?.() || new Date()
+        return createdAt.getMonth() === currentMonth && createdAt.getFullYear() === currentYear
+      })
+      
+      const monthlyCost = monthlyMaintenances.reduce((total, doc) => {
+        return total + (doc.data().cost || 0)
+      }, 0)
+      
+      stats.value.monthlyMaintenanceCost = monthlyCost
+    },
+    (error) => {
+      console.error('Error listening to maintenance changes:', error)
+    }
   )
-  onSnapshot(maintenanceQuery, (snapshot) => {
-    recentMaintenances.value = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      equipmentName: doc.data().equipmentName || 'Equipamento não identificado',
-      description: doc.data().description || 'Manutenção realizada'
-    }))
-    
-    // Count in maintenance
-    const inMaintenanceQuery = query(
-      collection(db, 'manutencoes'),
-      where('status', '==', 'em-andamento')
-    )
-    getDocs(inMaintenanceQuery).then(snapshot => {
-      stats.value.inMaintenanceCount = snapshot.size
-    })
-  })
   
-  // Listen to users changes
-  const usersQuery = query(collection(db, 'usuarios'))
-  onSnapshot(usersQuery, (snapshot) => {
-    stats.value.totalUsers = snapshot.size
-  })
+  // Listen to store changes
+  storeUnsubscribe = onSnapshot(
+    query(collection(db, 'stores')),
+    (snapshot) => {
+      const activeStores = snapshot.docs.filter(doc => doc.data().status === 'ativo')
+      stats.value.totalStores = activeStores.length
+    },
+    (error) => {
+      console.error('Error listening to store changes:', error)
+    }
+  )
+  
+  // Listen to company changes
+  companyUnsubscribe = onSnapshot(
+    query(collection(db, 'companies')),
+    (snapshot) => {
+      const activeCompanies = snapshot.docs.filter(doc => doc.data().status === 'ativo')
+      stats.value.totalCompanies = activeCompanies.length
+    },
+    (error) => {
+      console.error('Error listening to company changes:', error)
+    }
+  )
+  
+  // Listen to user changes
+  userUnsubscribe = onSnapshot(
+    query(collection(db, 'users')),
+    (snapshot) => {
+      stats.value.totalUsers = snapshot.size
+    },
+    (error) => {
+      console.error('Error listening to user changes:', error)
+    }
+  )
+}
+
+const generateAlerts = () => {
+  const alertsList = []
+  
+  // Warranty expiring alerts
+  if (stats.value.warrantyExpiringSoon > 0) {
+    alertsList.push({
+      type: 'warning',
+      icon: ['fas', 'exclamation-triangle'],
+      title: 'Garantias Vencendo',
+      message: `${stats.value.warrantyExpiringSoon} equipamentos com garantia vencendo em 30 dias`,
+      time: new Date(),
+    })
+  }
+  
+  // Equipment in maintenance alerts
+  if (stats.value.inMaintenanceCount > 0) {
+    alertsList.push({
+      type: 'info',
+      icon: ['fas', 'wrench'],
+      title: 'Equipamentos em Manutenção',
+      message: `${stats.value.inMaintenanceCount} equipamentos em manutenção`,
+      time: new Date(),
+    })
+  }
+  
+  // High monthly cost alert
+  if (stats.value.monthlyMaintenanceCost > 5000) {
+    alertsList.push({
+      type: 'error',
+      icon: ['fas', 'dollar-sign'],
+      title: 'Custos Elevados',
+      message: `Custos de manutenção do mês: R$ ${stats.value.monthlyMaintenanceCost.toFixed(2)}`,
+      time: new Date(),
+    })
+  }
+  
+  // No equipment alert
+  if (stats.value.totalEquipments === 0) {
+    alertsList.push({
+      type: 'info',
+      icon: ['fas', 'desktop'],
+      title: 'Nenhum Equipamento',
+      message: 'Cadastre equipamentos para começar a usar o sistema',
+      time: new Date(),
+    })
+  }
+  
+  alerts.value = alertsList
 }
 
 onMounted(() => {
   loadDashboardData()
   setupRealtimeListeners()
 })
+
+onUnmounted(() => {
+  // Clean up listeners
+  if (equipmentUnsubscribe) equipmentUnsubscribe()
+  if (maintenanceUnsubscribe) maintenanceUnsubscribe()
+  if (storeUnsubscribe) storeUnsubscribe()
+  if (companyUnsubscribe) companyUnsubscribe()
+  if (userUnsubscribe) userUnsubscribe()
+})
 </script>
 
 <style scoped>
 .dashboard {
-  padding: var(--space-8);
-  background: var(--color-gray-50);
+  padding: var(--space-4);
   min-height: 100vh;
+  background: #e5eaee !important;
 }
 
 .dashboard-header {
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-8);
 }
 
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: var(--space-8);
-  background: var(--color-white);
+  padding: var(--space-6);
+  background: var(--color-white) !important;
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-gray-100);
 }
 
 .header-text h1 {
-  font-size: var(--font-size-4xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-black);
   margin: 0 0 var(--space-2) 0;
@@ -463,13 +618,17 @@ onMounted(() => {
 
 .header-text p {
   color: var(--color-gray-600);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   margin: 0;
 }
 
 .header-actions {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
+}
+
+.btn-text {
+  display: inline;
 }
 
 .loading-state {
@@ -494,19 +653,19 @@ onMounted(() => {
 .dashboard-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-6);
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--space-6);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
 }
 
 .secondary-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 
 .dashboard-grid {
@@ -530,7 +689,7 @@ onMounted(() => {
 }
 
 .card-header {
-  padding: var(--space-8);
+  padding: var(--space-6);
   border-bottom: 1px solid var(--color-gray-100);
   display: flex;
   justify-content: space-between;
@@ -539,7 +698,7 @@ onMounted(() => {
 }
 
 .header-info h3 {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-black);
   margin: 0 0 var(--space-1) 0;
@@ -552,18 +711,19 @@ onMounted(() => {
 }
 
 .card-body {
-  padding: var(--space-8);
+  padding: var(--space-6);
+  background: var(--color-white);
 }
 
 .empty-state {
   text-align: center;
-  padding: var(--space-12);
+  padding: var(--space-8);
   color: var(--color-gray-500);
 }
 
 .empty-icon {
-  font-size: var(--font-size-5xl);
-  margin-bottom: var(--space-6);
+  font-size: var(--font-size-4xl);
+  margin-bottom: var(--space-4);
   color: var(--color-gray-300);
 }
 
@@ -579,13 +739,13 @@ onMounted(() => {
 }
 
 .empty-state p {
-  margin: 0 0 var(--space-6) 0;
+  margin: 0 0 var(--space-4) 0;
 }
 
 .store-chart {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 
 .store-bar {
@@ -603,10 +763,11 @@ onMounted(() => {
 .store-name {
   font-weight: var(--font-weight-semibold);
   color: var(--color-gray-900);
+  font-size: var(--font-size-sm);
 }
 
 .store-count {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   color: var(--color-gray-600);
 }
 
@@ -627,12 +788,12 @@ onMounted(() => {
 .maintenance-timeline {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 
 .timeline-item {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
   position: relative;
 }
 
@@ -640,8 +801,8 @@ onMounted(() => {
   content: '';
   position: absolute;
   left: 12px;
-  top: 32px;
-  bottom: -24px;
+  top: 28px;
+  bottom: -16px;
   width: 2px;
   background: var(--color-gray-200);
 }
@@ -675,10 +836,12 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .maintenance-header h4 {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-gray-900);
   margin: 0;
@@ -705,7 +868,7 @@ onMounted(() => {
 .maintenance-description {
   color: var(--color-gray-600);
   font-size: var(--font-size-sm);
-  margin: 0 0 var(--space-3) 0;
+  margin: 0 0 var(--space-2) 0;
   line-height: var(--line-height-relaxed);
 }
 
@@ -713,6 +876,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .maintenance-date {
@@ -745,13 +910,13 @@ onMounted(() => {
 .alerts-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .alert-item {
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-6);
+  gap: var(--space-3);
+  padding: var(--space-4);
   border-radius: var(--radius-xl);
   border: 1px solid;
   position: relative;
@@ -779,16 +944,255 @@ onMounted(() => {
 }
 
 .alert-icon {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
 }
 
 .alert-content {
   flex: 1;
 }
 
+.alert-content h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.alert-content p {
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-1) 0;
+}
+
 .alert-time {
   font-size: var(--font-size-xs);
   color: var(--color-gray-500);
+}
+
+.alert-dismiss {
+  background: none;
+  border: none;
+  color: var(--color-gray-400);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.alert-dismiss:hover {
+  color: var(--color-gray-600);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.action-item:hover {
+  background: var(--color-white);
+  border-color: var(--color-gray-300);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xl);
+  flex-shrink: 0;
+}
+
+.action-icon.primary {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.action-icon.success {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+
+.action-icon.warning {
+  background: var(--color-warning);
+  color: var(--color-white);
+}
+
+.action-icon.secondary {
+  background: var(--color-gray-600);
+  color: var(--color-white);
+}
+
+.action-content h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-900);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.action-content p {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .actions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    padding: var(--space-3);
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: var(--space-4);
+    align-items: stretch;
+    padding: var(--space-4);
+  }
+  
+  .header-text h1 {
+    font-size: var(--font-size-2xl);
+  }
+  
+  .header-actions {
+    justify-content: center;
+  }
+  
+  .btn-text {
+    display: none;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-3);
+  }
+  
+  .secondary-stats {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-3);
+  }
+  
+  .dashboard-grid {
+    gap: var(--space-4);
+  }
+  
+  .card-header {
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: stretch;
+    padding: var(--space-4);
+  }
+  
+  .card-body {
+    padding: var(--space-4);
+  }
+  
+  .maintenance-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .maintenance-meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .actions-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-item {
+    padding: var(--space-3);
+  }
+  
+  .action-icon {
+    width: 40px;
+    height: 40px;
+    font-size: var(--font-size-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard {
+    padding: var(--space-2);
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .secondary-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .store-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+  
+  .alert-item {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .alert-dismiss {
+    align-self: flex-end;
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+  }
+}
+
+/* Dark mode support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+  .dashboard {
+    background: var(--color-gray-900);
+  }
+  
+  .dashboard-card {
+    background: var(--color-gray-800);
+    border-color: var(--color-gray-700);
+  }
+  
+  .header-content {
+    background: var(--color-gray-800);
+    border-color: var(--color-gray-700);
+  }
 }
 </style>

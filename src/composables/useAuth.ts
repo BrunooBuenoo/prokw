@@ -1,77 +1,94 @@
-import { ref, computed } from 'vue'
-import type { User } from '../types'
+"use client"
 
-// USUÁRIOS MOCADOS PARA DESENVOLVIMENTO
-const mockUsers = {
-  'admin@teste.com': {
-    uid: 'mock-admin-123',
-    email: 'admin@teste.com',
-    name: 'Admin Teste',
-    role: 'admin' as const,
-    password: '123456',
-    photoURL: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150',
-    createdAt: new Date().toISOString(),
-    lastLogin: new Date().toISOString()
-  },
-  'tecnico@teste.com': {
-    uid: 'mock-tecnico-456',
-    email: 'tecnico@teste.com',
-    name: 'Técnico Teste',
-    role: 'tecnico' as const,
-    password: '123456',
-    photoURL: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=150',
-    createdAt: new Date().toISOString(),
-    lastLogin: new Date().toISOString()
-  },
-  'diretor@teste.com': {
-    uid: 'mock-diretor-789',
-    email: 'diretor@teste.com',
-    name: 'Diretor Teste',
-    role: 'diretor' as const,
-    password: '123456',
-    photoURL: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150',
-    createdAt: new Date().toISOString(),
-    lastLogin: new Date().toISOString()
-  },
-  'visualizador@teste.com': {
-    uid: 'mock-visualizador-101',
-    email: 'visualizador@teste.com',
-    name: 'Visualizador Teste',
-    role: 'visualizador' as const,
-    password: '123456',
-    photoURL: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150',
-    createdAt: new Date().toISOString(),
-    lastLogin: new Date().toISOString()
-  }
-}
+import { ref, computed, onMounted } from "vue"
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  updateProfile,
+} from "firebase/auth"
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore"
+import { auth, googleProvider, db } from "../firebase/config"
+import type { User } from "../types"
 
 const currentUser = ref<User | null>(null)
-const isLoading = ref(false)
+const isLoading = ref(true)
 
 export function useAuth() {
   const login = async (email: string, password: string): Promise<boolean> => {
     isLoading.value = true
-    
+
     try {
-      // Verificar se é um usuário mocado
-      const mockUser = mockUsers[email as keyof typeof mockUsers]
-      if (mockUser && mockUser.password === password) {
-        // Login com usuário mocado
-        const { password: _, ...userWithoutPassword } = mockUser
-        currentUser.value = userWithoutPassword as User
-        
-        // Simular delay de rede
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const firebaseUser = userCredential.user
+
+      // CORRIGIDO: Usar 'usuarios' em vez de 'users'
+      const userDoc = await getDoc(doc(db, "usuarios", firebaseUser.uid))
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data()
+        currentUser.value = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email!,
+          name: userData.name || firebaseUser.displayName || "Usuário",
+          role: userData.role || "visualizador",
+          photoURL: firebaseUser.photoURL,
+          createdAt: userData.createdAt,
+          lastLogin: new Date().toISOString(),
+        }
+
+        // Update last login
+        await setDoc(
+          doc(db, "usuarios", firebaseUser.uid), // CORRIGIDO
+          {
+            ...userData,
+            lastLogin: serverTimestamp(),
+          },
+          { merge: true },
+        )
+
+        return true
+      } else {
+        // Create user document if it doesn't exist
+        const newUserData = {
+          name: firebaseUser.displayName || "Usuário",
+          email: firebaseUser.email,
+          role: "visualizador",
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+        }
+
+        await setDoc(doc(db, "usuarios", firebaseUser.uid), newUserData) // CORRIGIDO
+
+        currentUser.value = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email!,
+          name: newUserData.name,
+          role: newUserData.role,
+          photoURL: firebaseUser.photoURL,
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+        }
+
         return true
       }
-      
-      // Se não for usuário mocado, retornar erro
-      return false
-      
-    } catch (error) {
-      console.error('Error logging in:', error)
-      return false
+    } catch (error: any) {
+      console.error("Error logging in:", error)
+
+      // Handle specific Firebase auth errors
+      switch (error.code) {
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+          throw new Error("Email ou senha incorretos")
+        case "auth/too-many-requests":
+          throw new Error("Muitas tentativas. Tente novamente mais tarde.")
+        case "auth/user-disabled":
+          throw new Error("Conta desabilitada. Entre em contato com o suporte.")
+        default:
+          throw new Error("Erro ao fazer login. Tente novamente.")
+      }
     } finally {
       isLoading.value = false
     }
@@ -79,25 +96,120 @@ export function useAuth() {
 
   const loginWithGoogle = async (): Promise<{ success: boolean; user?: User; error?: string }> => {
     try {
-      // Para desenvolvimento, simular login com Google usando usuário admin
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      const mockUser = mockUsers['admin@teste.com']
-      const { password: _, ...userWithoutPassword } = mockUser
-      currentUser.value = userWithoutPassword as User
-      
-      return { success: true, user: currentUser.value }
+      isLoading.value = true
+
+      const result = await signInWithPopup(auth, googleProvider)
+      const firebaseUser = result.user
+
+      // CORRIGIDO: Usar 'usuarios' em vez de 'users'
+      const userDoc = await getDoc(doc(db, "usuarios", firebaseUser.uid))
+
+      let userData
+      if (userDoc.exists()) {
+        userData = userDoc.data()
+        // Update last login
+        await setDoc(
+          doc(db, "usuarios", firebaseUser.uid), // CORRIGIDO
+          {
+            ...userData,
+            lastLogin: serverTimestamp(),
+          },
+          { merge: true },
+        )
+      } else {
+        // Create new user document
+        userData = {
+          name: firebaseUser.displayName || "Usuário",
+          email: firebaseUser.email,
+          role: "visualizador",
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+        }
+        await setDoc(doc(db, "usuarios", firebaseUser.uid), userData) // CORRIGIDO
+      }
+
+      const user: User = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email!,
+        name: userData.name || firebaseUser.displayName || "Usuário",
+        role: userData.role || "visualizador",
+        photoURL: firebaseUser.photoURL,
+        createdAt: userData.createdAt,
+        lastLogin: new Date().toISOString(),
+      }
+
+      currentUser.value = user
+      return { success: true, user }
     } catch (error: any) {
-      console.error('Error with Google login:', error)
-      return { success: false, error: 'Erro ao fazer login com Google' }
+      console.error("Error with Google login:", error)
+
+      if (error.code === "auth/popup-closed-by-user") {
+        return { success: false, error: "Login cancelado pelo usuário" }
+      }
+
+      return { success: false, error: "Erro ao fazer login com Google" }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const register = async (email: string, password: string, name: string): Promise<boolean> => {
+    try {
+      isLoading.value = true
+
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const firebaseUser = userCredential.user
+
+      // Update display name
+      await updateProfile(firebaseUser, { displayName: name })
+
+      // Create user document in Firestore
+      const userData = {
+        name,
+        email,
+        role: "visualizador",
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+      }
+
+      await setDoc(doc(db, "usuarios", firebaseUser.uid), userData) // CORRIGIDO
+
+      currentUser.value = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email!,
+        name,
+        role: "visualizador",
+        photoURL: firebaseUser.photoURL,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+      }
+
+      return true
+    } catch (error: any) {
+      console.error("Error registering:", error)
+
+      switch (error.code) {
+        case "auth/email-already-in-use":
+          throw new Error("Este email já está em uso")
+        case "auth/weak-password":
+          throw new Error("A senha deve ter pelo menos 6 caracteres")
+        case "auth/invalid-email":
+          throw new Error("Email inválido")
+        default:
+          throw new Error("Erro ao criar conta. Tente novamente.")
+      }
+    } finally {
+      isLoading.value = false
     }
   }
 
   const logout = async (): Promise<void> => {
     try {
+      await signOut(auth)
       currentUser.value = null
     } catch (error) {
-      console.error('Error logging out:', error)
+      console.error("Error logging out:", error)
+      throw new Error("Erro ao fazer logout")
     }
   }
 
@@ -106,27 +218,50 @@ export function useAuth() {
     return requiredRoles.includes(currentUser.value.role)
   }
 
-  const canManageEquipments = computed(() => 
-    hasPermission(['admin', 'tecnico'])
-  )
+  const canManageEquipments = computed(() => hasPermission(["admin", "tecnico"]))
+  const canViewReports = computed(() => hasPermission(["admin", "diretor"]))
+  const canManageUsers = computed(() => hasPermission(["admin"]))
 
-  const canViewReports = computed(() => 
-    hasPermission(['admin', 'diretor'])
-  )
+  // Initialize auth state listener
+  onMounted(() => {
+    onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // CORRIGIDO: Usar 'usuarios' em vez de 'users'
+          const userDoc = await getDoc(doc(db, "usuarios", firebaseUser.uid))
 
-  const canManageUsers = computed(() => 
-    hasPermission(['admin'])
-  )
+          if (userDoc.exists()) {
+            const userData = userDoc.data()
+            currentUser.value = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email!,
+              name: userData.name || firebaseUser.displayName || "Usuário",
+              role: userData.role || "visualizador",
+              photoURL: firebaseUser.photoURL,
+              createdAt: userData.createdAt,
+              lastLogin: userData.lastLogin,
+            }
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error)
+        }
+      } else {
+        currentUser.value = null
+      }
+      isLoading.value = false
+    })
+  })
 
   return {
     currentUser,
     isLoading,
     login,
     loginWithGoogle,
+    register,
     logout,
     hasPermission,
     canManageEquipments,
     canViewReports,
-    canManageUsers
+    canManageUsers,
   }
 }

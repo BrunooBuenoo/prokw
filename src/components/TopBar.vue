@@ -5,21 +5,26 @@
         <button class="mobile-menu-btn" @click="$emit('toggleMobileMenu')">
           <font-awesome-icon :icon="['fas', 'bars']" />
         </button>
-        
+                
         <div class="search-container">
           <div class="search-box" :class="{ 'search-focused': isSearchFocused }">
             <font-awesome-icon :icon="['fas', 'search']" class="search-icon" />
             <input 
-              type="text" 
+              type="text"
               placeholder="Buscar equipamentos, lojas, usuários..."
               @input="handleSearch"
-              @focus="isSearchFocused = true"
-              @blur="isSearchFocused = false"
+              @focus="handleSearchFocus"
+              @blur="handleSearchBlur"
               class="search-input"
               v-model="searchQuery"
             />
-            <div class="search-suggestions" v-if="isSearchFocused && searchQuery.length > 2">
-              <div class="suggestion-item" v-for="suggestion in searchSuggestions" :key="suggestion.id">
+            <div class="search-suggestions" v-if="isSearchFocused && searchQuery.length > 2 && searchSuggestions.length > 0">
+              <div 
+                class="suggestion-item" 
+                v-for="suggestion in searchSuggestions" 
+                :key="suggestion.id"
+                @click="handleSuggestionClick(suggestion)"
+              >
                 <font-awesome-icon :icon="suggestion.icon" class="suggestion-icon" />
                 <div class="suggestion-content">
                   <span class="suggestion-title">{{ suggestion.title }}</span>
@@ -30,23 +35,29 @@
           </div>
         </div>
       </div>
-      
+            
       <div class="topbar-right">
         <div class="topbar-actions">
           <button class="action-btn notification-btn" @click="toggleNotifications">
             <font-awesome-icon :icon="['fas', 'bell']" />
-            <span class="notification-badge" v-if="notificationCount > 0">{{ notificationCount }}</span>
+            <span class="notification-badge" v-if="unreadNotifications > 0">{{ unreadNotifications }}</span>
           </button>
-          
+                    
           <div class="notifications-dropdown" v-if="showNotifications" @click.stop>
             <div class="notifications-header">
               <h3>Notificações</h3>
-              <button class="mark-all-read" @click="markAllAsRead">
+              <button class="mark-all-read" @click="markAllAsRead" v-if="unreadNotifications > 0">
                 Marcar todas como lidas
               </button>
             </div>
             <div class="notifications-list">
-              <div class="notification-item" v-for="notification in notifications" :key="notification.id" :class="{ 'unread': !notification.read }">
+              <div 
+                class="notification-item" 
+                v-for="notification in notifications" 
+                :key="notification.id" 
+                :class="{ 'unread': !notification.read }"
+                @click="handleNotificationClick(notification)"
+              >
                 <div class="notification-icon" :class="notification.type">
                   <font-awesome-icon :icon="notification.icon" />
                 </div>
@@ -55,14 +66,18 @@
                   <span class="notification-time">{{ formatTime(notification.time) }}</span>
                 </div>
               </div>
+              <div v-if="notifications.length === 0" class="no-notifications">
+                <font-awesome-icon :icon="['fas', 'bell-slash']" />
+                <p>Nenhuma notificação</p>
+              </div>
             </div>
           </div>
-          
+                    
           <div class="user-menu" @click="toggleUserMenu">
             <div class="user-avatar">
-              <img 
-                v-if="currentUser?.photoURL" 
-                :src="currentUser.photoURL" 
+              <img
+                v-if="currentUser?.photoURL"
+                :src="currentUser.photoURL"
                 :alt="currentUser.name"
                 class="avatar-image"
               />
@@ -74,13 +89,13 @@
             </div>
             <font-awesome-icon :icon="['fas', 'chevron-down']" class="dropdown-arrow" :class="{ 'rotated': showUserMenu }" />
           </div>
-          
+                    
           <div class="user-dropdown" v-if="showUserMenu" @click.stop>
             <div class="dropdown-header">
               <div class="user-avatar-large">
-                <img 
-                  v-if="currentUser?.photoURL" 
-                  :src="currentUser.photoURL" 
+                <img
+                  v-if="currentUser?.photoURL"
+                  :src="currentUser.photoURL"
                   :alt="currentUser.name"
                   class="avatar-image"
                 />
@@ -93,11 +108,11 @@
               </div>
             </div>
             <div class="dropdown-menu">
-              <a href="#" class="dropdown-item">
+              <a href="#" class="dropdown-item" @click.prevent="handleProfileClick">
                 <font-awesome-icon :icon="['fas', 'user-cog']" />
                 Perfil
               </a>
-              <a href="#" class="dropdown-item">
+              <a href="#" class="dropdown-item" @click.prevent="handleSettingsClick">
                 <font-awesome-icon :icon="['fas', 'cog']" />
                 Configurações
               </a>
@@ -116,76 +131,223 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { useEquipments } from '../composables/useEquipments'
+import { useStores } from '../composables/useStores'
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  limit,
+  onSnapshot,
+  updateDoc,
+  doc
+} from 'firebase/firestore'
+import { db } from '../firebase/config'
 
+const router = useRouter()
 const { currentUser, logout } = useAuth()
+const { equipments } = useEquipments()
+const { stores } = useStores()
 
 const emit = defineEmits(['search', 'toggleMobileMenu'])
 
+// Estados
 const searchQuery = ref('')
 const isSearchFocused = ref(false)
 const showNotifications = ref(false)
 const showUserMenu = ref(false)
-const notificationCount = ref(3)
+const notifications = ref([])
+const users = ref([])
 
-const notifications = ref([
-  {
-    id: 1,
-    message: 'Equipamento Dell OptiPlex precisa de manutenção',
-    time: new Date(Date.now() - 1000 * 60 * 30),
-    type: 'warning',
-    icon: ['fas', 'exclamation-triangle'],
-    read: false
-  },
-  {
-    id: 2,
-    message: 'Nova empresa terceira cadastrada',
-    time: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    type: 'info',
-    icon: ['fas', 'building'],
-    read: false
-  },
-  {
-    id: 3,
-    message: 'Relatório mensal gerado com sucesso',
-    time: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    type: 'success',
-    icon: ['fas', 'check-circle'],
-    read: true
-  }
-])
-
+// Busca em tempo real
 const searchSuggestions = computed(() => {
   if (searchQuery.value.length < 2) return []
   
-  return [
-    {
-      id: 1,
-      title: 'Computador Dell OptiPlex',
-      type: 'Equipamento',
-      icon: ['fas', 'desktop']
-    },
-    {
-      id: 2,
-      title: 'Loja Centro',
-      type: 'Loja',
-      icon: ['fas', 'store']
-    },
-    {
-      id: 3,
-      title: 'João Silva',
-      type: 'Usuário',
-      icon: ['fas', 'user']
-    }
-  ].filter(item => 
-    item.title.toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
+  const query = searchQuery.value.toLowerCase()
+  const suggestions = []
+  
+  // Buscar equipamentos
+  equipments.value
+    .filter(equipment => 
+      equipment.name.toLowerCase().includes(query) ||
+      equipment.brand.toLowerCase().includes(query) ||
+      equipment.model.toLowerCase().includes(query) ||
+      equipment.internalCode.toLowerCase().includes(query)
+    )
+    .slice(0, 3)
+    .forEach(equipment => {
+      suggestions.push({
+        id: `equipment-${equipment.id}`,
+        title: `${equipment.name} - ${equipment.brand}`,
+        type: 'Equipamento',
+        icon: ['fas', 'desktop'],
+        route: '/equipamentos',
+        data: equipment
+      })
+    })
+  
+  // Buscar lojas
+  stores.value
+    .filter(store => 
+      store.name.toLowerCase().includes(query) ||
+      store.code.toLowerCase().includes(query) ||
+      store.city.toLowerCase().includes(query)
+    )
+    .slice(0, 3)
+    .forEach(store => {
+      suggestions.push({
+        id: `store-${store.id}`,
+        title: `${store.name} - ${store.city}`,
+        type: 'Loja',
+        icon: ['fas', 'store'],
+        route: '/lojas',
+        data: store
+      })
+    })
+  
+  // Buscar usuários
+  users.value
+    .filter(user => 
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query)
+    )
+    .slice(0, 2)
+    .forEach(user => {
+      suggestions.push({
+        id: `user-${user.uid}`,
+        title: user.name,
+        type: 'Usuário',
+        icon: ['fas', 'user'],
+        route: '/usuarios',
+        data: user
+      })
+    })
+  
+  return suggestions.slice(0, 8)
 })
 
+// Notificações em tempo real
+const unreadNotifications = computed(() => {
+  return notifications.value.filter(n => !n.read).length
+})
+
+// Carregar dados iniciais
+const loadInitialData = async () => {
+  try {
+    // Carregar usuários para busca
+    const usersQuery = query(collection(db, 'usuarios'), limit(50))
+    const usersSnapshot = await getDocs(usersQuery)
+    users.value = usersSnapshot.docs.map(doc => ({
+      uid: doc.id,
+      ...doc.data()
+    }))
+    
+    // Carregar notificações
+    await loadNotifications()
+  } catch (error) {
+    console.error('Erro ao carregar dados iniciais:', error)
+  }
+}
+
+// Carregar notificações baseadas em dados reais
+const loadNotifications = async () => {
+  try {
+    const notificationsList = []
+    
+    // Verificar equipamentos com garantia vencendo (próximos 30 dias)
+    const thirtyDaysFromNow = new Date()
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+    
+    equipments.value.forEach(equipment => {
+      if (equipment.warrantyUntil) {
+        const warrantyDate = new Date(equipment.warrantyUntil)
+        if (warrantyDate <= thirtyDaysFromNow && warrantyDate > new Date()) {
+          notificationsList.push({
+            id: `warranty-${equipment.id}`,
+            message: `Garantia do equipamento ${equipment.name} vence em breve`,
+            time: new Date(),
+            type: 'warning',
+            icon: ['fas', 'exclamation-triangle'],
+            read: false,
+            route: '/equipamentos',
+            data: equipment
+          })
+        }
+      }
+    })
+    
+    // Verificar equipamentos em manutenção há muito tempo
+    const equipmentsInMaintenance = equipments.value.filter(eq => eq.status === 'manutencao')
+    if (equipmentsInMaintenance.length > 0) {
+      notificationsList.push({
+        id: 'maintenance-alert',
+        message: `${equipmentsInMaintenance.length} equipamento(s) em manutenção`,
+        time: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
+        type: 'info',
+        icon: ['fas', 'tools'],
+        read: false,
+        route: '/equipamentos'
+      })
+    }
+    
+    // Verificar novos usuários (últimos 7 dias)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    
+    const newUsers = users.value.filter(user => {
+      const createdAt = user.createdAt?.toDate ? user.createdAt.toDate() : new Date(user.createdAt)
+      return createdAt >= sevenDaysAgo
+    })
+    
+    if (newUsers.length > 0) {
+      notificationsList.push({
+        id: 'new-users',
+        message: `${newUsers.length} novo(s) usuário(s) cadastrado(s)`,
+        time: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 dia atrás
+        type: 'success',
+        icon: ['fas', 'user-plus'],
+        read: false,
+        route: '/usuarios'
+      })
+    }
+    
+    // Ordenar por data (mais recentes primeiro)
+    notifications.value = notificationsList.sort((a, b) => b.time - a.time)
+  } catch (error) {
+    console.error('Erro ao carregar notificações:', error)
+  }
+}
+
+// Handlers
 const handleSearch = (event: Event) => {
   const target = event.target as HTMLInputElement
   searchQuery.value = target.value
   emit('search', target.value)
+}
+
+const handleSearchFocus = () => {
+  isSearchFocused.value = true
+}
+
+const handleSearchBlur = () => {
+  // Delay para permitir clique nas sugestões
+  setTimeout(() => {
+    isSearchFocused.value = false
+  }, 200)
+}
+
+const handleSuggestionClick = (suggestion: any) => {
+  searchQuery.value = suggestion.title
+  isSearchFocused.value = false
+  
+  // Navegar para a rota correspondente
+  if (suggestion.route) {
+    router.push(suggestion.route)
+  }
 }
 
 const toggleNotifications = () => {
@@ -198,11 +360,47 @@ const toggleUserMenu = () => {
   showNotifications.value = false
 }
 
+const handleNotificationClick = async (notification: any) => {
+  // Marcar como lida
+  if (!notification.read) {
+    notification.read = true
+    // Aqui você poderia salvar no banco se necessário
+  }
+  
+  // Navegar se houver rota
+  if (notification.route) {
+    router.push(notification.route)
+  }
+  
+  showNotifications.value = false
+}
+
 const markAllAsRead = () => {
   notifications.value.forEach(notification => {
     notification.read = true
   })
-  notificationCount.value = 0
+}
+
+const handleProfileClick = () => {
+  showUserMenu.value = false
+  // Implementar navegação para perfil
+  console.log('Navegar para perfil')
+}
+
+const handleSettingsClick = () => {
+  showUserMenu.value = false
+  // Implementar navegação para configurações
+  console.log('Navegar para configurações')
+}
+
+const handleLogout = async () => {
+  try {
+    await logout()
+    showUserMenu.value = false
+    router.push('/login')
+  } catch (error) {
+    console.error('Erro ao fazer logout:', error)
+  }
 }
 
 const formatTime = (time: Date) => {
@@ -227,11 +425,6 @@ const getRoleText = (role: string) => {
   return roles[role as keyof typeof roles] || 'Usuário'
 }
 
-const handleLogout = async () => {
-  await logout()
-  showUserMenu.value = false
-}
-
 const handleClickOutside = (event: Event) => {
   const target = event.target as HTMLElement
   if (!target.closest('.topbar-actions')) {
@@ -243,8 +436,18 @@ const handleClickOutside = (event: Event) => {
   }
 }
 
+// Lifecycle
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  loadInitialData()
+  
+  // Recarregar notificações a cada 5 minutos
+  const notificationInterval = setInterval(loadNotifications, 5 * 60 * 1000)
+  
+  // Cleanup
+  onUnmounted(() => {
+    clearInterval(notificationInterval)
+  })
 })
 
 onUnmounted(() => {
@@ -257,11 +460,9 @@ onUnmounted(() => {
   height: 95px;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: var(--backdrop-blur);
-  /* border-bottom: 1px solid var(--color-gray-100); */
   position: sticky;
   top: 0;
   z-index: 50;
-  /* box-shadow: var(--shadow-sm); */
 }
 
 .topbar-content {
@@ -360,6 +561,8 @@ onUnmounted(() => {
   margin-top: var(--space-2);
   overflow: hidden;
   z-index: 1000;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .suggestion-item {
@@ -383,11 +586,14 @@ onUnmounted(() => {
 .suggestion-icon {
   color: var(--color-gray-400);
   font-size: var(--font-size-lg);
+  width: 20px;
+  text-align: center;
 }
 
 .suggestion-content {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .suggestion-title {
@@ -496,10 +702,13 @@ onUnmounted(() => {
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: color var(--transition-fast);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
 }
 
 .mark-all-read:hover {
   color: var(--color-black);
+  background: var(--color-gray-100);
 }
 
 .notifications-list {
@@ -569,6 +778,21 @@ onUnmounted(() => {
 .notification-time {
   font-size: var(--font-size-xs);
   color: var(--color-gray-500);
+}
+
+.no-notifications {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-gray-400);
+}
+
+.no-notifications svg {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--space-2);
 }
 
 .user-menu {
@@ -775,4 +999,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

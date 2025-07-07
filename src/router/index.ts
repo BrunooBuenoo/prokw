@@ -53,7 +53,7 @@ const routes = [
     path: '/usuarios',
     name: 'Usuarios',
     component: () => import('../views/UsersView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    //meta: { requiresAuth: true, roles: ['admin'] }
   },
   {
     path: '/',
@@ -68,7 +68,7 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   const { currentUser, isLoading, hasPermission } = useAuth()
-
+  
   // Wait for auth state to be determined
   if (isLoading.value) {
     await new Promise(resolve => {

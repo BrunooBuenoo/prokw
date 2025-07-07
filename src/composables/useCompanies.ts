@@ -1,17 +1,18 @@
-import { ref } from 'vue'
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  doc, 
-  updateDoc, 
+import { ref } from "vue"
+import {
+  collection,
+  addDoc,
+  updateDoc,
   deleteDoc,
+  doc,
+  getDocs,
   query,
   orderBy,
-  where
-} from 'firebase/firestore'
-import { db } from '../firebase/config'
-import type { Company } from '../types'
+  where,
+  serverTimestamp,
+} from "firebase/firestore"
+import { db } from "../firebase/config"
+import type { Company } from "../types"
 
 export function useCompanies() {
   const companies = ref<Company[]>([])
@@ -20,65 +21,104 @@ export function useCompanies() {
   const loadCompanies = async (filters?: { status?: string }) => {
     isLoading.value = true
     try {
-      let q = query(collection(db, 'empresas'), orderBy('name'))
-      
+      let companyQuery = query(collection(db, "companies"), orderBy("createdAt", "desc"))
+
       if (filters?.status) {
-        q = query(q, where('status', '==', filters.status))
+        companyQuery = query(
+          collection(db, "companies"),
+          where("status", "==", filters.status),
+          orderBy("createdAt", "desc"),
+        )
       }
-      
-      const querySnapshot = await getDocs(q)
-      companies.value = querySnapshot.docs.map(doc => ({
+
+      const querySnapshot = await getDocs(companyQuery)
+
+      companies.value = querySnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
       })) as Company[]
     } catch (error) {
-      console.error('Error loading companies:', error)
+      console.error("Error loading companies:", error)
       throw error
     } finally {
       isLoading.value = false
     }
   }
 
-  const addCompany = async (company: Omit<Company, 'id'>) => {
+  const addCompany = async (company: Omit<Company, "id">) => {
     try {
-      const docRef = await addDoc(collection(db, 'empresas'), {
+      isLoading.value = true
+
+      const docRef = await addDoc(collection(db, "companies"), {
         ...company,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       })
-      await loadCompanies()
+
+      const newCompany: Company = {
+        ...company,
+        id: docRef.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      companies.value.unshift(newCompany)
       return docRef.id
     } catch (error) {
-      console.error('Error adding company:', error)
+      console.error("Error adding company:", error)
       throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
   const updateCompany = async (id: string, updates: Partial<Company>) => {
     try {
-      await updateDoc(doc(db, 'empresas', id), {
+      isLoading.value = true
+
+      await updateDoc(doc(db, "companies", id), {
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: serverTimestamp(),
       })
-      await loadCompanies()
+
+      const index = companies.value.findIndex((company) => company.id === id)
+      if (index !== -1) {
+        companies.value[index] = {
+          ...companies.value[index],
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        }
+      }
     } catch (error) {
-      console.error('Error updating company:', error)
+      console.error("Error updating company:", error)
       throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
   const deleteCompany = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'empresas', id))
-      await loadCompanies()
+      isLoading.value = true
+
+      await deleteDoc(doc(db, "companies", id))
+
+      const index = companies.value.findIndex((company) => company.id === id)
+      if (index !== -1) {
+        companies.value.splice(index, 1)
+      }
     } catch (error) {
-      console.error('Error deleting company:', error)
+      console.error("Error deleting company:", error)
       throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
   const getCompanyById = (id: string) => {
-    return companies.value.find(company => company.id === id)
+    return companies.value.find((company) => company.id === id)
   }
 
   return {
@@ -88,6 +128,6 @@ export function useCompanies() {
     addCompany,
     updateCompany,
     deleteCompany,
-    getCompanyById
+    getCompanyById,
   }
 }

@@ -15,7 +15,7 @@
         </div>
       </div>
     </div>
-    
+        
     <!-- Tela de Login Moderna -->
     <div v-else-if="!currentUser" class="login-layout">
       <div class="login-background">
@@ -25,7 +25,7 @@
           <div class="shape shape-3"></div>
         </div>
       </div>
-      
+            
       <div class="login-container">
         <div class="login-card">
           <div class="login-header">
@@ -39,7 +39,7 @@
               </div>
             </div>
           </div>
-          
+                    
           <form @submit.prevent="handleLogin" class="login-form">
             <div class="form-group">
               <label for="email" class="form-label">Email</label>
@@ -55,7 +55,7 @@
                 />
               </div>
             </div>
-            
+                        
             <div class="form-group">
               <label for="password" class="form-label">Senha</label>
               <div class="input-wrapper">
@@ -69,7 +69,7 @@
                   required
                 />
                 <button 
-                  type="button" 
+                  type="button"
                   class="password-toggle"
                   @click="showPassword = !showPassword"
                 >
@@ -77,18 +77,20 @@
                 </button>
               </div>
             </div>
-            
+                        
             <div class="form-options">
               <label class="checkbox-label">
                 <input type="checkbox" v-model="rememberMe" />
                 <span class="checkmark"></span>
                 <span>Lembrar de mim</span>
               </label>
-              <a href="#" class="forgot-password">Esqueceu a senha?</a>
+              <a href="#" class="forgot-password" @click.prevent="openPasswordResetModal">
+                Esqueceu a senha?
+              </a>
             </div>
-            
+                        
             <button 
-              type="submit" 
+              type="submit"
               class="btn btn-primary btn-lg login-btn"
               :disabled="isLoginLoading"
             >
@@ -99,11 +101,11 @@
               />
               {{ isLoginLoading ? 'Entrando...' : 'Entrar' }}
             </button>
-            
+                        
             <div class="divider">
               <span>ou continue com</span>
             </div>
-            
+                        
             <button 
               type="button"
               class="btn btn-secondary btn-lg google-btn"
@@ -118,43 +120,133 @@
               </svg>
               {{ isGoogleLoading ? 'Conectando...' : 'Google' }}
             </button>
-            
+                        
             <div v-if="error" class="alert alert-error">
               <font-awesome-icon :icon="['fas', 'exclamation-circle']" />
               {{ error }}
             </div>
-            
+                        
             <div v-if="successMessage" class="alert alert-success">
               <font-awesome-icon :icon="['fas', 'check-circle']" />
               {{ successMessage }}
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Recuperação de Senha -->
+    <div v-if="showPasswordResetModal" class="modal-overlay" @click="closePasswordResetModal">
+      <div class="modal-content password-reset-modal" @click.stop>
+        <div class="modal-header">
+          <h2>
+            <font-awesome-icon :icon="['fas', 'key']" />
+            Recuperar Senha
+          </h2>
+          <button class="close-btn" @click="closePasswordResetModal">
+            <font-awesome-icon :icon="['fas', 'times']" />
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <div v-if="!resetEmailSent" class="reset-form">
+            <div class="reset-icon">
+              <font-awesome-icon :icon="['fas', 'envelope']" />
+            </div>
+            <h3>Esqueceu sua senha?</h3>
+            <p>Digite seu email e enviaremos um link para redefinir sua senha.</p>
+            
+            <form @submit.prevent="handlePasswordReset" class="password-reset-form">
+              <div class="form-group">
+                <label for="resetEmail" class="form-label">Email</label>
+                <div class="input-wrapper">
+                  <font-awesome-icon :icon="['fas', 'envelope']" class="input-icon" />
+                  <input
+                    id="resetEmail"
+                    v-model="resetEmail"
+                    type="email"
+                    class="form-input"
+                    placeholder="seu@email.com"
+                    required
+                    :disabled="isResetLoading"
+                  />
+                </div>
+              </div>
+              
+              <div v-if="resetError" class="alert alert-error">
+                <font-awesome-icon :icon="['fas', 'exclamation-circle']" />
+                {{ resetError }}
+              </div>
+              
+              <div class="modal-actions">
+                <button 
+                  type="button" 
+                  class="btn btn-secondary" 
+                  @click="closePasswordResetModal"
+                  :disabled="isResetLoading"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  class="btn btn-primary"
+                  :disabled="isResetLoading"
+                >
+                  <font-awesome-icon 
+                    v-if="isResetLoading"
+                    :icon="['fas', 'spinner']" 
+                    class="loading-icon"
+                  />
+                  {{ isResetLoading ? 'Enviando...' : 'Enviar Link' }}
+                </button>
+              </div>
+            </form>
+          </div>
           
-          <div class="demo-section">
-            <h4>Credenciais de Demonstração</h4>
-            <div class="demo-grid">
-              <div class="demo-item" @click="fillCredentials('admin@teste.com', '123456')">
-                <strong>Admin</strong>
-                <span>admin@teste.com</span>
-              </div>
-              <div class="demo-item" @click="fillCredentials('tecnico@teste.com', '123456')">
-                <strong>Técnico</strong>
-                <span>tecnico@teste.com</span>
-              </div>
-              <div class="demo-item" @click="fillCredentials('diretor@teste.com', '123456')">
-                <strong>Diretor</strong>
-                <span>diretor@teste.com</span>
-              </div>
-              <div class="demo-item" @click="fillCredentials('visualizador@teste.com', '123456')">
-                <strong>Visualizador</strong>
-                <span>visualizador@teste.com</span>
-              </div>
+          <!-- Tela de Sucesso -->
+          <div v-else class="reset-success">
+            <div class="success-icon">
+              <font-awesome-icon :icon="['fas', 'check-circle']" />
+            </div>
+            <h3>Email Enviado!</h3>
+            <p>
+              Enviamos um link de recuperação para <strong>{{ resetEmail }}</strong>
+            </p>
+            <div class="success-instructions">
+              <h4>Próximos passos:</h4>
+              <ol>
+                <li>Verifique sua caixa de entrada</li>
+                <li>Clique no link de recuperação</li>
+                <li>Defina uma nova senha</li>
+                <li>Faça login com a nova senha</li>
+              </ol>
+            </div>
+            
+            <div class="success-actions">
+              <button 
+                class="btn btn-secondary" 
+                @click="closePasswordResetModal"
+              >
+                Fechar
+              </button>
+              <button 
+                class="btn btn-primary" 
+                @click="resendResetEmail"
+                :disabled="isResetLoading"
+              >
+                <font-awesome-icon 
+                  v-if="isResetLoading"
+                  :icon="['fas', 'spinner']" 
+                  class="loading-icon"
+                />
+                {{ isResetLoading ? 'Reenviando...' : 'Reenviar Email' }}
+              </button>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+        
     <!-- Layout Principal -->
     <div v-else class="main-layout">
       <Sidebar />
@@ -170,6 +262,8 @@
 
 <script setup lang="ts">
 import { ref, provide, onMounted } from 'vue'
+import { sendPasswordResetEmail } from 'firebase/auth'
+import { auth } from './firebase/config'
 import { useAuth } from './composables/useAuth'
 import Sidebar from './components/Sidebar.vue'
 import TopBar from './components/TopBar.vue'
@@ -187,6 +281,13 @@ const isGoogleLoading = ref(false)
 const error = ref('')
 const successMessage = ref('')
 
+// Estados do modal de recuperação de senha
+const showPasswordResetModal = ref(false)
+const resetEmail = ref('')
+const resetEmailSent = ref(false)
+const isResetLoading = ref(false)
+const resetError = ref('')
+
 const { currentUser, isLoading, login, loginWithGoogle } = useAuth()
 
 const handleLogin = async () => {
@@ -202,9 +303,26 @@ const handleLogin = async () => {
     } else {
       error.value = 'Email ou senha incorretos'
     }
-  } catch (err) {
-    error.value = 'Erro ao fazer login. Tente novamente.'
+  } catch (err: any) {
     console.error('Login error:', err)
+    
+    // Tratamento específico de erros
+    switch (err.code) {
+      case 'auth/user-not-found':
+        error.value = 'Usuário não encontrado'
+        break
+      case 'auth/wrong-password':
+        error.value = 'Senha incorreta'
+        break
+      case 'auth/too-many-requests':
+        error.value = 'Muitas tentativas. Tente novamente mais tarde.'
+        break
+      case 'auth/user-disabled':
+        error.value = 'Conta desabilitada. Entre em contato com o suporte.'
+        break
+      default:
+        error.value = err.message || 'Erro ao fazer login. Tente novamente.'
+    }
   } finally {
     isLoginLoading.value = false
   }
@@ -231,6 +349,59 @@ const handleGoogleLogin = async () => {
   }
 }
 
+// Funções de recuperação de senha
+const openPasswordResetModal = () => {
+  showPasswordResetModal.value = true
+  resetEmail.value = loginForm.value.email // Pré-preencher com email do login se houver
+  resetEmailSent.value = false
+  resetError.value = ''
+}
+
+const closePasswordResetModal = () => {
+  showPasswordResetModal.value = false
+  resetEmail.value = ''
+  resetEmailSent.value = false
+  resetError.value = ''
+  isResetLoading.value = false
+}
+
+const handlePasswordReset = async () => {
+  resetError.value = ''
+  isResetLoading.value = true
+  
+  try {
+    await sendPasswordResetEmail(auth, resetEmail.value, {
+      url: window.location.origin, // URL para retornar após redefinir senha
+      handleCodeInApp: false
+    })
+    
+    resetEmailSent.value = true
+    console.log('Email de recuperação enviado para:', resetEmail.value)
+  } catch (err: any) {
+    console.error('Password reset error:', err)
+    
+    switch (err.code) {
+      case 'auth/user-not-found':
+        resetError.value = 'Nenhuma conta encontrada com este email'
+        break
+      case 'auth/invalid-email':
+        resetError.value = 'Email inválido'
+        break
+      case 'auth/too-many-requests':
+        resetError.value = 'Muitas tentativas. Tente novamente mais tarde.'
+        break
+      default:
+        resetError.value = 'Erro ao enviar email. Tente novamente.'
+    }
+  } finally {
+    isResetLoading.value = false
+  }
+}
+
+const resendResetEmail = async () => {
+  await handlePasswordReset()
+}
+
 const fillCredentials = (email: string, password: string) => {
   loginForm.value.email = email
   loginForm.value.password = password
@@ -254,6 +425,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Estilos existentes mantidos... */
+
 /* Loading Screen */
 .loading-screen {
   position: fixed;
@@ -581,51 +754,188 @@ onMounted(() => {
   border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
-.demo-section {
-  margin-top: var(--space-8);
-  padding-top: var(--space-8);
-  border-top: 1px solid var(--color-gray-200);
+/* Modal de Recuperação de Senha */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-4);
 }
 
-.demo-section h4 {
-  font-size: var(--font-size-sm);
+.modal-content {
+  background: var(--color-white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2xl);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.password-reset-modal {
+  max-width: 450px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-6);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.modal-header h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-900);
+  margin: 0;
+}
+
+.close-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-gray-500);
+  transition: all var(--transition-fast);
+}
+
+.close-btn:hover {
+  background: var(--color-gray-100);
   color: var(--color-gray-700);
-  margin-bottom: var(--space-4);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+.reset-form {
   text-align: center;
 }
 
-.demo-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.reset-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-6);
+  font-size: var(--font-size-2xl);
+  color: var(--color-gray-600);
+}
+
+.reset-form h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-gray-900);
+  margin-bottom: var(--space-3);
+}
+
+.reset-form p {
+  color: var(--color-gray-600);
+  margin-bottom: var(--space-8);
+  line-height: var(--line-height-relaxed);
+}
+
+.password-reset-form {
+  text-align: left;
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
+/* Tela de Sucesso */
+.reset-success {
+  text-align: center;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--color-success-light);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-6);
+  font-size: var(--font-size-2xl);
+  color: var(--color-success);
+}
+
+.reset-success h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-gray-900);
+  margin-bottom: var(--space-3);
+}
+
+.reset-success p {
+  color: var(--color-gray-600);
+  margin-bottom: var(--space-6);
+  line-height: var(--line-height-relaxed);
+}
+
+.success-instructions {
+  background: var(--color-gray-50);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+  text-align: left;
+}
+
+.success-instructions h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-900);
+  margin-bottom: var(--space-3);
+}
+
+.success-instructions ol {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-gray-600);
+}
+
+.success-instructions li {
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.success-actions {
+  display: flex;
   gap: var(--space-3);
 }
 
-.demo-item {
-  padding: var(--space-3);
-  background: var(--color-gray-50);
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: center;
-}
-
-.demo-item:hover {
-  background: var(--color-gray-100);
-  transform: translateY(-1px);
-}
-
-.demo-item strong {
-  display: block;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-gray-900);
-  margin-bottom: var(--space-1);
-}
-
-.demo-item span {
-  font-size: var(--font-size-xs);
-  color: var(--color-gray-600);
+.success-actions .btn {
+  flex: 1;
 }
 
 /* Main Layout */
@@ -663,12 +973,18 @@ onMounted(() => {
     padding: var(--space-8);
   }
   
-  .demo-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .shape {
     display: none;
+  }
+  
+  .modal-content {
+    margin: var(--space-4);
+    max-height: calc(100vh - 2rem);
+  }
+  
+  .modal-actions,
+  .success-actions {
+    flex-direction: column;
   }
 }
 </style>

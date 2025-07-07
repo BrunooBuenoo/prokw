@@ -15,14 +15,16 @@ export interface Equipment {
   brand: string
   model: string
   internalCode: string
-  serialNumber: string
-  location: string
+  serialNumber?: string
+  patrimonyNumber?: string
+  location?: string
   store: string
-  warrantyUntil: string
+  warrantyUntil?: string
   status: 'ativo' | 'manutencao' | 'inativo'
-  purchaseValue: number
-  purchaseDate: string
+  purchaseValue?: number
+  purchaseDate?: string
   invoiceUrl?: string
+  notes?: string
   createdAt: string
   updatedAt: string
 }
@@ -42,21 +44,38 @@ export interface Store {
   updatedAt?: string
 }
 
+export interface Company {
+  id: string
+  name: string
+  cnpj: string
+  address: string
+  city: string
+  state: string
+  zipCode: string
+  phone: string
+  email: string
+  contact: string
+  services: string[]
+  status: 'ativo' | 'inativo'
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface Maintenance {
   id: string
   equipmentId: string
   type: 'preventiva' | 'corretiva'
   isExternal: boolean
   technician?: string
-  company?: string
+  companyId?: string
   description: string
   cost: number
   startDate: string
   endDate?: string
   returnDate?: string
-  warrantyDays: number
+  warrantyDays?: number
   status: 'pendente' | 'em-andamento' | 'concluida'
-  attachments: string[]
+  attachments?: string[]
   createdAt: string
   updatedAt: string
 }
