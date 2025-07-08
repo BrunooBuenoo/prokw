@@ -194,7 +194,7 @@
                   title="Excluir usuário"
                   :disabled="user.uid === currentUser?.uid"
                 >
-                  <font-awesome-icon :icon="['fas', 'trash']" />
+                   <font-awesome-icon :icon="['fas', 'trash']" />
                 </button>
               </div>
             </div>

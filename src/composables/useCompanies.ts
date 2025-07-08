@@ -12,7 +12,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore"
 import { db } from "../firebase/config"
-import type { Company } from "../types"
+import type { Company } from '../types/index'
 
 export function useCompanies() {
   const companies = ref<Company[]>([])

@@ -1,0 +1,16 @@
+[
+  {
+    "origin": [
+      "http://localhost:5173",
+      "https://seu-projeto.vercel.app",
+      "https://infrakw-bc602.web.app"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "x-goog-meta-originalName"
+    ]
+  }
+]

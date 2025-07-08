@@ -3,7 +3,7 @@
     <div class="sidebar-header">
       <div class="logo" @click="toggleSidebar">
         <div class="logo-icon">
-          <font-awesome-icon :icon="['fas', 'cogs']" />
+          <font-awesome-icon :icon="['fas', 'users']" />
         </div>
         <div class="logo-text" v-show="!isCollapsed">
           <span class="logo-title">InfraKW</span>

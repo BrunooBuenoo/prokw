@@ -8,8 +8,8 @@
           <p>Gerencie empresas parceiras e prestadores de serviços</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" @click="exportData">
-            <font-awesome-icon :icon="['fas', 'download']" />
+          <button class="btn btn-secondary" @click="exportData" :disabled="isExporting">
+            <font-awesome-icon :icon="['fas', 'download']" :class="{ 'fa-spin': isExporting }" />
             <span class="btn-text">Exportar</span>
           </button>
           <button class="btn btn-primary" @click="showAddModal = true">
@@ -22,51 +22,44 @@
 
     <!-- Filters Section -->
     <div class="companies-filters">
-      <div class="filter-group">
-        <div class="search-input">
-          <font-awesome-icon :icon="['fas', 'search']" class="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Buscar por nome, CNPJ, contato ou email..." 
-            class="form-input"
-            v-model="searchQuery"
-          />
+      <div class="filters-card">
+        <div class="filters-header">
+          <h3>Filtros</h3>
+          <button class="btn btn-ghost btn-sm" @click="clearFilters">
+            <font-awesome-icon :icon="['fas', 'times']" />
+            <span class="btn-text">Limpar</span>
+          </button>
         </div>
-        <select v-model="selectedStatus" class="form-select">
-          <option value="">Todos os status</option>
-          <option value="ativo">Ativo</option>
-          <option value="inativo">Inativo</option>
-        </select>
-        <select v-model="selectedState" class="form-select">
-          <option value="">Todos os estados</option>
-          <option v-for="state in availableStates" :key="state" :value="state">
-            {{ state }}
-          </option>
-        </select>
-        <button class="btn btn-secondary" @click="clearFilters" v-if="hasActiveFilters">
-          <font-awesome-icon :icon="['fas', 'times']" />
-          <span class="btn-text">Limpar</span>
-        </button>
-      </div>
-      <div class="filter-results" v-if="companies.length > 0">
-        <span class="results-count">
-          {{ filteredCompanies.length }} de {{ companies.length }} empresas
-        </span>
-        <div class="view-toggle">
-          <button 
-            class="view-btn" 
-            :class="{ active: viewMode === 'cards' }"
-            @click="viewMode = 'cards'"
-          >
-            <font-awesome-icon :icon="['fas', 'th-large']" />
-          </button>
-          <button 
-            class="view-btn" 
-            :class="{ active: viewMode === 'table' }"
-            @click="viewMode = 'table'"
-          >
-            <font-awesome-icon :icon="['fas', 'list']" />
-          </button>
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label class="filter-label">Buscar</label>
+            <div class="search-input">
+              <font-awesome-icon :icon="['fas', 'search']" class="search-icon" />
+              <input 
+                type="text" 
+                placeholder="Nome, CNPJ, contato ou email..." 
+                class="form-input"
+                v-model="searchQuery"
+              />
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Status</label>
+            <select v-model="selectedStatus" class="form-select">
+              <option value="">Todos os status</option>
+              <option value="ativo">Ativo</option>
+              <option value="inativo">Inativo</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Estado</label>
+            <select v-model="selectedState" class="form-select">
+              <option value="">Todos os estados</option>
+              <option v-for="state in availableStates" :key="state" :value="state">
+                {{ state }}
+              </option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -75,7 +68,7 @@
     <div v-if="isLoading" class="loading-state">
       <div class="loading-container">
         <div class="loading-spinner">
-          <font-awesome-icon :icon="['fas', 'spinner']" class="fa-spin" />
+          <font-awesome-icon :icon="['fas', 'spinner']" class="loading-icon" />
         </div>
         <h3>Carregando empresas...</h3>
         <p>Aguarde enquanto buscamos os dados</p>
@@ -88,183 +81,216 @@
         <div class="empty-icon">
           <font-awesome-icon :icon="['fas', 'building']" />
         </div>
-        <h3>{{ searchQuery || selectedStatus || selectedState ? 'Nenhuma empresa encontrada' : 'Nenhuma empresa cadastrada' }}</h3>
-        <p>{{ searchQuery || selectedStatus || selectedState ? 'Tente ajustar os filtros de busca' : 'Comece cadastrando sua primeira empresa terceira' }}</p>
+        <h3>{{ hasFilters ? 'Nenhuma empresa encontrada' : 'Nenhuma empresa cadastrada' }}</h3>
+        <p>{{ hasFilters ? 'Tente ajustar os filtros de busca' : 'Comece cadastrando sua primeira empresa terceira' }}</p>
         <button class="btn btn-primary" @click="showAddModal = true">
           <font-awesome-icon :icon="['fas', 'plus']" />
-          {{ searchQuery || selectedStatus || selectedState ? 'Cadastrar Empresa' : 'Cadastrar Primeira Empresa' }}
+          {{ hasFilters ? 'Cadastrar Empresa' : 'Cadastrar Primeira Empresa' }}
         </button>
       </div>
     </div>
 
-    <!-- Cards View -->
-    <div v-else-if="viewMode === 'cards'" class="companies-grid">
-      <div 
-        v-for="company in filteredCompanies" 
-        :key="company.id"
-        class="company-card"
-        @click="viewCompany(company)"
-      >
-        <div class="company-header">
-          <div class="company-info">
-            <h3>{{ company.name }}</h3>
-            <p class="company-cnpj">{{ formatCNPJ(company.cnpj) }}</p>
-          </div>
-          <div class="company-status" :class="company.status">
-            <font-awesome-icon 
-              :icon="company.status === 'ativo' ? ['fas', 'check-circle'] : ['fas', 'pause-circle']" 
-            />
-            {{ company.status }}
-          </div>
+    <div v-else class="companies-content">
+      <!-- View Toggle -->
+      <div class="view-controls">
+        <div class="view-toggle">
+          <button 
+            class="toggle-btn"
+            :class="{ active: viewMode === 'table' }"
+            @click="setViewMode('table')"
+          >
+            <font-awesome-icon :icon="['fas', 'table']" />
+            <span class="btn-text">Tabela</span>
+          </button>
+          <button 
+            class="toggle-btn"
+            :class="{ active: viewMode === 'cards' }"
+            @click="setViewMode('cards')"
+          >
+            <font-awesome-icon :icon="['fas', 'th-large']" />
+            <span class="btn-text">Cards</span>
+          </button>
         </div>
-        
-        <div class="company-details">
-          <div class="detail-row">
-            <font-awesome-icon :icon="['fas', 'user']" class="detail-icon" />
-            <span class="detail-label">Contato:</span>
-            <span>{{ company.contact }}</span>
-          </div>
-          <div class="detail-row">
-            <font-awesome-icon :icon="['fas', 'envelope']" class="detail-icon" />
-            <span class="detail-label">Email:</span>
-            <span>{{ company.email }}</span>
-          </div>
-          <div class="detail-row">
-            <font-awesome-icon :icon="['fas', 'phone']" class="detail-icon" />
-            <span class="detail-label">Telefone:</span>
-            <span>{{ formatPhone(company.phone) }}</span>
-          </div>
-          <div class="detail-row">
-            <font-awesome-icon :icon="['fas', 'map-marker-alt']" class="detail-icon" />
-            <span class="detail-label">Cidade:</span>
-            <span>{{ company.city }} - {{ company.state }}</span>
-          </div>
-          <div class="detail-row" v-if="company.services && company.services.length > 0">
-            <font-awesome-icon :icon="['fas', 'tools']" class="detail-icon" />
-            <span class="detail-label">Serviços:</span>
-            <div class="services-tags">
-              <span 
-                v-for="service in company.services.slice(0, 2)" 
-                :key="service"
-                class="service-tag"
-              >
-                {{ service }}
-              </span>
-              <span v-if="company.services.length > 2" class="service-tag more">
-                +{{ company.services.length - 2 }}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="company-actions" @click.stop>
-          <button 
-            class="btn btn-sm btn-secondary" 
-            @click="viewCompany(company)"
-          >
-            <font-awesome-icon :icon="['fas', 'eye']" />
-            <span class="btn-text">Ver</span>
-          </button>
-          <button 
-            class="btn btn-sm btn-primary" 
-            @click="editCompany(company)"
-          >
-            <font-awesome-icon :icon="['fas', 'edit']" />
-            <span class="btn-text">Editar</span>
-          </button>
-          <button 
-            class="btn btn-sm" 
-            :class="company.status === 'ativo' ? 'btn-warning' : 'btn-success'"
-            @click="toggleCompanyStatus(company)"
-          >
-            <font-awesome-icon 
-              :icon="company.status === 'ativo' ? ['fas', 'pause'] : ['fas', 'play']" 
-            />
-            <span class="btn-text">{{ company.status === 'ativo' ? 'Desativar' : 'Ativar' }}</span>
-          </button>
+        <div class="results-info">
+          {{ filteredCompanies.length }} empresa{{ filteredCompanies.length !== 1 ? 's' : '' }} encontrada{{ filteredCompanies.length !== 1 ? 's' : '' }}
         </div>
       </div>
-    </div>
 
-    <!-- Table View -->
-    <div v-else class="companies-table">
-      <div class="table-container">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Empresa</th>
-              <th>Contato</th>
-              <th>Localização</th>
-              <th>Serviços</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="company in filteredCompanies" :key="company.id">
-              <td>
-                <div class="company-cell">
-                  <strong>{{ company.name }}</strong>
-                  <small>{{ formatCNPJ(company.cnpj) }}</small>
-                </div>
-              </td>
-              <td>
-                <div class="contact-cell">
-                  <div>{{ company.contact }}</div>
-                  <small>{{ company.email }}</small>
-                </div>
-              </td>
-              <td>{{ company.city }} - {{ company.state }}</td>
-              <td>
-                <div class="services-cell">
-                  <span 
-                    v-for="service in company.services?.slice(0, 2)" 
-                    :key="service"
-                    class="service-tag small"
-                  >
-                    {{ service }}
-                  </span>
-                  <span v-if="company.services && company.services.length > 2" class="service-tag small more">
-                    +{{ company.services.length - 2 }}
-                  </span>
-                </div>
-              </td>
-              <td>
-                <span class="status-badge" :class="company.status">
-                  <font-awesome-icon 
-                    :icon="company.status === 'ativo' ? ['fas', 'check-circle'] : ['fas', 'pause-circle']" 
-                  />
-                  {{ company.status }}
+      <!-- Cards View -->
+      <div v-if="viewMode === 'cards'" class="companies-grid">
+        <div 
+          v-for="company in filteredCompanies" 
+          :key="company.id"
+          class="company-card"
+          @click="viewCompany(company)"
+        >
+          <div class="company-header">
+            <div class="company-info">
+              <h3>{{ company.name }}</h3>
+              <p class="company-cnpj">{{ formatCNPJ(company.cnpj) }}</p>
+            </div>
+            <div class="company-status" :class="company.status">
+              <font-awesome-icon 
+                :icon="company.status === 'ativo' ? ['fas', 'check-circle'] : ['fas', 'pause-circle']" 
+              />
+              {{ company.status }}
+            </div>
+          </div>
+          
+          <div class="company-details">
+            <div class="detail-row">
+              <font-awesome-icon :icon="['fas', 'user']" class="detail-icon" />
+              <span class="detail-label">Contato:</span>
+              <span>{{ company.contact }}</span>
+            </div>
+            <div class="detail-row">
+              <font-awesome-icon :icon="['fas', 'envelope']" class="detail-icon" />
+              <span class="detail-label">Email:</span>
+              <span>{{ company.email }}</span>
+            </div>
+            <div class="detail-row">
+              <font-awesome-icon :icon="['fas', 'phone']" class="detail-icon" />
+              <span class="detail-label">Telefone:</span>
+              <span>{{ formatPhone(company.phone) }}</span>
+            </div>
+            <div class="detail-row">
+              <font-awesome-icon :icon="['fas', 'map-marker-alt']" class="detail-icon" />
+              <span class="detail-label">Cidade:</span>
+              <span>{{ company.city }} - {{ company.state }}</span>
+            </div>
+            <div class="detail-row" v-if="company.services && company.services.length > 0">
+              <font-awesome-icon :icon="['fas', 'tools']" class="detail-icon" />
+              <span class="detail-label">Serviços:</span>
+              <div class="services-tags">
+                <span 
+                  v-for="service in company.services.slice(0, 2)" 
+                  :key="service"
+                  class="service-tag"
+                >
+                  {{ service }}
                 </span>
-              </td>
-              <td>
-                <div class="table-actions">
-                  <button 
-                    class="btn btn-sm btn-secondary" 
-                    @click="viewCompany(company)"
-                  >
-                    <font-awesome-icon :icon="['fas', 'eye']" />
-                  </button>
-                  <button 
-                    class="btn btn-sm btn-primary" 
-                    @click="editCompany(company)"
-                  >
-                    <font-awesome-icon :icon="['fas', 'edit']" />
-                  </button>
-                  <button 
-                    class="btn btn-sm" 
-                    :class="company.status === 'ativo' ? 'btn-warning' : 'btn-success'"
-                    @click="toggleCompanyStatus(company)"
-                  >
-                    <font-awesome-icon 
-                      :icon="company.status === 'ativo' ? ['fas', 'pause'] : ['fas', 'play']" 
-                    />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <span v-if="company.services.length > 2" class="service-tag more">
+                  +{{ company.services.length - 2 }}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="company-actions" @click.stop>
+            <button 
+              class="btn btn-sm btn-secondary" 
+              @click="viewCompany(company)"
+            >
+              <font-awesome-icon :icon="['fas', 'eye']" />
+              <span class="btn-text">Ver</span>
+            </button>
+            <button 
+              class="btn btn-sm btn-primary" 
+              @click="editCompany(company)"
+            >
+              <font-awesome-icon :icon="['fas', 'edit']" />
+              <span class="btn-text">Editar</span>
+            </button>
+            <button 
+              class="btn btn-sm" 
+              :class="company.status === 'ativo' ? 'btn-warning' : 'btn-success'"
+              @click="toggleCompanyStatus(company)"
+            >
+              <font-awesome-icon 
+                :icon="company.status === 'ativo' ? ['fas', 'pause'] : ['fas', 'play']" 
+              />
+              <span class="btn-text">{{ company.status === 'ativo' ? 'Desativar' : 'Ativar' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table View -->
+      <div v-else class="companies-table">
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Contato</th>
+                <th>Localização</th>
+                <th>Serviços</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="company in filteredCompanies" :key="company.id" class="table-row">
+                <td>
+                  <div class="company-cell">
+                    <div class="company-name">{{ company.name }}</div>
+                    <div class="company-cnpj">{{ formatCNPJ(company.cnpj) }}</div>
+                  </div>
+                </td>
+                <td>
+                  <div class="contact-cell">
+                    <div class="contact-name">{{ company.contact }}</div>
+                    <div class="contact-email">{{ company.email }}</div>
+                    <div class="contact-phone">{{ formatPhone(company.phone) }}</div>
+                  </div>
+                </td>
+                <td>
+                  <div class="location-cell">
+                    <div class="city-state">{{ company.city }} - {{ company.state }}</div>
+                  </div>
+                </td>
+                <td>
+                  <div class="services-cell">
+                    <span 
+                      v-for="service in company.services?.slice(0, 2)" 
+                      :key="service"
+                      class="service-tag small"
+                    >
+                      {{ service }}
+                    </span>
+                    <span v-if="company.services && company.services.length > 2" class="service-tag small more">
+                      +{{ company.services.length - 2 }}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div class="status-cell" :class="company.status">
+                    <div class="status-dot"></div>
+                    {{ company.status === 'ativo' ? 'Ativo' : 'Inativo' }}
+                  </div>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <button 
+                      class="action-btn secondary" 
+                      @click="viewCompany(company)"
+                      title="Ver detalhes"
+                    >
+                      <font-awesome-icon :icon="['fas', 'eye']" />
+                    </button>
+                    <button 
+                      class="action-btn primary" 
+                      @click="editCompany(company)"
+                      title="Editar"
+                    >
+                      <font-awesome-icon :icon="['fas', 'edit']" />
+                    </button>
+                    <button 
+                      class="action-btn" 
+                      :class="company.status === 'ativo' ? 'warning' : 'success'"
+                      @click="toggleCompanyStatus(company)"
+                      :title="company.status === 'ativo' ? 'Desativar' : 'Ativar'"
+                    >
+                      <font-awesome-icon 
+                        :icon="company.status === 'ativo' ? ['fas', 'pause'] : ['fas', 'play']" 
+                      />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -616,6 +642,7 @@
 </template>
 
 <script setup lang="ts">
+
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCompanies } from '../composables/useCompanies'
 import type { Company } from '../types'
@@ -627,11 +654,14 @@ const showDetailsModal = ref(false)
 const editingCompany = ref<Company | null>(null)
 const selectedCompany = ref<Company | null>(null)
 const isSaving = ref(false)
+const isExporting = ref(false)
 const searchQuery = ref('')
 const selectedStatus = ref('')
 const selectedState = ref('')
 const newService = ref('')
-const viewMode = ref<'cards' | 'table'>('cards')
+
+// View mode with localStorage persistence
+const viewMode = ref(localStorage.getItem('companies-view-mode') || 'cards')
 
 const companyForm = ref({
   name: '',
@@ -677,9 +707,14 @@ const availableStates = computed(() => {
   return states.sort()
 })
 
-const hasActiveFilters = computed(() => {
+const hasFilters = computed(() => {
   return searchQuery.value || selectedStatus.value || selectedState.value
 })
+
+const setViewMode = (mode: 'table' | 'cards') => {
+  viewMode.value = mode
+  localStorage.setItem('companies-view-mode', mode)
+}
 
 const formatCNPJ = (cnpj: string) => {
   if (!cnpj) return ''
@@ -846,30 +881,44 @@ const saveCompany = async () => {
   }
 }
 
-const exportData = () => {
-  const csvContent = [
-    ['Nome', 'CNPJ', 'Contato', 'Email', 'Telefone', 'Cidade', 'Estado', 'Status'].join(','),
-    ...filteredCompanies.value.map(company => [
-      company.name,
-      formatCNPJ(company.cnpj),
-      company.contact,
-      company.email,
-      formatPhone(company.phone),
-      company.city,
-      company.state,
-      company.status
-    ].join(','))
-  ].join('\n')
+const exportData = async () => {
+  isExporting.value = true
+  try {
+    const data = filteredCompanies.value.map(company => ({
+      Nome: company.name,
+      CNPJ: formatCNPJ(company.cnpj),
+      Contato: company.contact,
+      Email: company.email,
+      Telefone: formatPhone(company.phone),
+      Cidade: company.city,
+      Estado: company.state,
+      Status: company.status
+    }))
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', `empresas_${new Date().toISOString().split('T')[0]}.csv`)
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+    // Create CSV content
+    const headers = Object.keys(data[0] || {})
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => `"${row[header as keyof typeof row] || ''}"`).join(','))
+    ].join('\n')
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `empresas_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  } catch (error) {
+    console.error('Error exporting data:', error)
+  } finally {
+    isExporting.value = false
+  }
 }
 
 onMounted(() => {
@@ -884,21 +933,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Same comprehensive styles as StoresView but adapted for companies */
 .companies-view {
-  padding: var(--space-8);
-  background: var(--color-gray-50);
+  padding: var(--space-4);
+  background: #f8fafc;
   min-height: 100vh;
 }
 
 .companies-header {
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-8);
 }
 
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: var(--space-8);
+  padding: var(--space-6);
   background: var(--color-white);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-sm);
@@ -906,7 +956,7 @@ onUnmounted(() => {
 }
 
 .header-text h1 {
-  font-size: var(--font-size-4xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-black);
   margin: 0 0 var(--space-2) 0;
@@ -918,29 +968,64 @@ onUnmounted(() => {
 
 .header-text p {
   color: var(--color-gray-600);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   margin: 0;
 }
 
 .header-actions {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
+}
+
+.btn-text {
+  display: inline;
 }
 
 .companies-filters {
+  margin-bottom: var(--space-6);
+}
+
+.filters-card {
   background: var(--color-white);
-  border-radius: var(--radius-xl);
-  padding: var(--space-6);
-  margin-bottom: var(--space-8);
+  border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-gray-100);
+  overflow: hidden;
+}
+
+.filters-header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-gray-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-white));
+}
+
+.filters-header h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-black);
+  margin: 0;
+}
+
+.filters-grid {
+  padding: var(--space-4);
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--space-4);
 }
 
 .filter-group {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.filter-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-700);
 }
 
 .search-input {
@@ -958,43 +1043,6 @@ onUnmounted(() => {
 
 .search-input .form-input {
   padding-left: var(--space-10);
-}
-
-.filter-results {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-gray-200);
-}
-
-.results-count {
-  color: var(--color-gray-600);
-  font-size: var(--font-size-sm);
-}
-
-.view-toggle {
-  display: flex;
-  gap: var(--space-1);
-  background: var(--color-gray-100);
-  border-radius: var(--radius-lg);
-  padding: var(--space-1);
-}
-
-.view-btn {
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md);
-  color: var(--color-gray-600);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.view-btn.active {
-  background: var(--color-white);
-  color: var(--color-primary-600);
-  box-shadow: var(--shadow-sm);
 }
 
 .loading-state,
@@ -1022,8 +1070,17 @@ onUnmounted(() => {
   justify-content: center;
   margin: 0 auto var(--space-6) auto;
   box-shadow: var(--shadow-lg);
+}
+
+.loading-icon {
   font-size: var(--font-size-3xl);
-  color: var(--color-primary-500);
+  color: var(--color-black);
+  animation: spin 2s linear infinite;
+}
+
+.empty-icon {
+  font-size: var(--font-size-3xl);
+  color: var(--color-gray-400);
 }
 
 .loading-container h3,
@@ -1037,8 +1094,60 @@ onUnmounted(() => {
 .loading-container p,
 .empty-container p {
   color: var(--color-gray-600);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   margin: 0 0 var(--space-6) 0;
+}
+
+.companies-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.view-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4);
+  background: var(--color-white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-gray-100);
+  margin-bottom: var(--space-4);
+}
+
+.view-toggle {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--color-gray-100);
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+}
+
+.toggle-btn {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--color-gray-600);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.toggle-btn.active {
+  background: var(--color-white);
+  color: var(--color-black);
+  box-shadow: var(--shadow-sm);
+}
+
+.results-info {
+  color: var(--color-gray-600);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .companies-grid {
@@ -1049,7 +1158,7 @@ onUnmounted(() => {
 
 .company-card {
   background: var(--color-white);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-gray-100);
   overflow: hidden;
@@ -1068,6 +1177,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  background: linear-gradient(135deg, var(--color-gray-50), var(--color-white));
 }
 
 .company-info h3 {
@@ -1082,27 +1192,31 @@ onUnmounted(() => {
   font-size: var(--font-size-sm);
   color: var(--color-gray-500);
   font-family: var(--font-mono);
+  background: var(--color-gray-100);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  display: inline-block;
 }
 
 .company-status {
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .company-status.ativo {
-  background: var(--color-green-100);
-  color: var(--color-green-700);
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .company-status.inativo {
-  background: var(--color-red-100);
-  color: var(--color-red-700);
+  background: var(--color-error-light);
+  color: var(--color-error);
 }
 
 .company-details {
@@ -1183,9 +1297,10 @@ onUnmounted(() => {
   flex: 1;
 }
 
+/* Table View */
 .companies-table {
   background: var(--color-white);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-gray-100);
   overflow: hidden;
@@ -1197,44 +1312,81 @@ onUnmounted(() => {
 
 .table {
   width: 100%;
-  border-collapse: collapse;
-}
-
-.table th,
-.table td {
-  padding: var(--space-4);
-  text-align: left;
-  border-bottom: 1px solid var(--color-gray-100);
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table th {
+  padding: var(--space-4) var(--space-4);
   background: var(--color-gray-50);
   font-weight: var(--font-weight-semibold);
   color: var(--color-gray-700);
   font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-gray-200);
 }
 
-.table tbody tr:hover {
+.table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-gray-100);
+}
+
+.table-row {
+  transition: all var(--transition-fast);
+}
+
+.table-row:hover {
   background: var(--color-gray-50);
 }
 
-.company-cell strong {
-  display: block;
-  color: var(--color-black);
+.company-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.company-name {
   font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-900);
+  font-size: var(--font-size-sm);
 }
 
-.company-cell small {
-  color: var(--color-gray-500);
-  font-family: var(--font-mono);
+.company-cell .company-cnpj {
+  font-size: var(--font-size-xs);
+  background: var(--color-gray-100);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  align-self: flex-start;
 }
 
-.contact-cell div {
-  color: var(--color-black);
+.contact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-.contact-cell small {
-  color: var(--color-gray-500);
+.contact-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-900);
+  font-size: var(--font-size-sm);
+}
+
+.contact-email,
+.contact-phone {
+  color: var(--color-gray-600);
+  font-size: var(--font-size-xs);
+}
+
+.location-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.city-state {
+  color: var(--color-gray-600);
+  font-size: var(--font-size-sm);
 }
 
 .services-cell {
@@ -1243,25 +1395,34 @@ onUnmounted(() => {
   gap: var(--space-1);
 }
 
-.status-badge {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  display: inline-flex;
+.status-cell {
+  display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
 
-.status-badge.ativo {
-  background: var(--color-green-100);
-  color: var(--color-green-700);
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
 }
 
-.status-badge.inativo {
-  background: var(--color-red-100);
-  color: var(--color-red-700);
+.status-cell.ativo {
+  color: var(--color-success);
+}
+
+.status-cell.ativo .status-dot {
+  background: var(--color-success);
+}
+
+.status-cell.inativo {
+  color: var(--color-error);
+}
+
+.status-cell.inativo .status-dot {
+  background: var(--color-error);
 }
 
 .table-actions {
@@ -1269,6 +1430,64 @@ onUnmounted(() => {
   gap: var(--space-1);
 }
 
+.action-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-btn.secondary {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+.action-btn.secondary:hover {
+  background: var(--color-gray-200);
+  color: var(--color-black);
+  transform: translateY(-1px);
+}
+
+.action-btn.primary {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.action-btn.primary:hover {
+  background: var(--color-gray-800);
+  transform: translateY(-1px);
+}
+
+.action-btn.warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.action-btn.warning:hover {
+  background: var(--color-warning);
+  color: var(--color-white);
+  transform: translateY(-1px);
+}
+
+.action-btn.success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.action-btn.success:hover {
+  background: var(--color-success);
+  color: var(--color-white);
+  transform: translateY(-1px);
+}
+
+/* Modal styles - same as StoresView */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1303,6 +1522,7 @@ onUnmounted(() => {
   align-items: center;
   padding: var(--space-6);
   border-bottom: 1px solid var(--color-gray-100);
+  background: var(--color-gray-50);
 }
 
 .modal-header h2 {
@@ -1310,13 +1530,16 @@ onUnmounted(() => {
   color: var(--color-black);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: var(--font-size-xl);
-  color: var(--color-gray-400);
+  color: var(--color-gray-500);
   cursor: pointer;
   padding: var(--space-2);
   border-radius: var(--radius-lg);
@@ -1325,7 +1548,7 @@ onUnmounted(() => {
 
 .modal-close:hover {
   background: var(--color-gray-100);
-  color: var(--color-gray-600);
+  color: var(--color-gray-700);
 }
 
 .modal-body {
@@ -1409,6 +1632,34 @@ onUnmounted(() => {
   gap: var(--space-4);
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-700);
+}
+
+.form-input,
+.form-select {
+  padding: var(--space-3);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: var(--color-black);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
 .services-input {
   display: flex;
   gap: var(--space-2);
@@ -1434,16 +1685,112 @@ onUnmounted(() => {
   background: var(--color-gray-50);
 }
 
-.btn-text {
-  margin-left: var(--space-2);
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-gray-800);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+.btn-secondary:hover {
+  background: var(--color-gray-200);
+  color: var(--color-black);
+}
+
+.btn-warning {
+  background: var(--color-warning);
+  color: var(--color-white);
+}
+
+.btn-warning:hover {
+  background: var(--color-warning-dark);
+}
+
+.btn-success {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+
+.btn-success:hover {
+  background: var(--color-success-dark);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-gray-600);
+  border: 1px solid var(--color-gray-200);
+}
+
+.btn-ghost:hover {
+  background: var(--color-gray-50);
+  color: var(--color-black);
+}
+
+.btn-sm {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+.status-badge {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.status-badge.ativo {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.status-badge.inativo {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
 @media (max-width: 1024px) {
   .companies-view {
     padding: var(--space-6);
   }
   
-  .filter-group {
+  .filters-grid {
     grid-template-columns: 1fr 1fr;
   }
   
@@ -1463,14 +1810,8 @@ onUnmounted(() => {
     align-items: stretch;
   }
   
-  .filter-group {
+  .filters-grid {
     grid-template-columns: 1fr;
-  }
-  
-  .filter-results {
-    flex-direction: column;
-    gap: var(--space-3);
-    align-items: stretch;
   }
   
   .companies-grid {
@@ -1499,6 +1840,16 @@ onUnmounted(() => {
   
   .btn-text {
     display: none;
+  }
+  
+  .view-controls {
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: stretch;
+  }
+  
+  .table-container {
+    font-size: var(--font-size-sm);
   }
 }
 

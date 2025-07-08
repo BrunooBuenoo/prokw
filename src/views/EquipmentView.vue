@@ -18,7 +18,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="equipment-filters">
       <div class="filters-card">
         <div class="filters-header">
@@ -34,8 +34,8 @@
             <div class="search-input">
               <font-awesome-icon :icon="['fas', 'search']" class="search-icon" />
               <input 
-                type="text" 
-                placeholder="Nome, código ou série..." 
+                type="text"
+                placeholder="Nome, código ou série..."
                 class="form-input"
                 v-model="searchQuery"
               />
@@ -74,7 +74,7 @@
         </div>
       </div>
     </div>
-    
+
     <div v-if="isLoading" class="loading-state">
       <div class="loading-container">
         <div class="loading-spinner">
@@ -84,7 +84,7 @@
         <p>Aguarde enquanto buscamos os dados</p>
       </div>
     </div>
-    
+
     <div v-else-if="filteredEquipments.length === 0" class="empty-state">
       <div class="empty-container">
         <div class="empty-icon">
@@ -98,36 +98,37 @@
         </button>
       </div>
     </div>
-    
+
     <div v-else class="equipment-content">
-      <div class="content-header">
-        <div class="results-info">
-          <span class="results-count">{{ filteredEquipments.length }}</span>
-          <span class="results-text">equipamentos encontrados</span>
-        </div>
-        <div class="view-controls">
+      <!-- View Toggle -->
+      <div class="view-controls">
+        <div class="view-toggle">
           <button 
-            class="view-btn" 
-            :class="{ active: viewMode === 'grid' }"
-            @click="viewMode = 'grid'"
-            title="Visualização em grade"
+            class="toggle-btn"
+            :class="{ active: viewMode === 'table' }"
+            @click="setViewMode('table')"
+          >
+            <font-awesome-icon :icon="['fas', 'table']" />
+            <span class="btn-text">Tabela</span>
+          </button>
+          <button 
+            class="toggle-btn"
+            :class="{ active: viewMode === 'cards' }"
+            @click="setViewMode('cards')"
           >
             <font-awesome-icon :icon="['fas', 'th-large']" />
-          </button>
-          <button 
-            class="view-btn" 
-            :class="{ active: viewMode === 'list' }"
-            @click="viewMode = 'list'"
-            title="Visualização em lista"
-          >
-            <font-awesome-icon :icon="['fas', 'list']" />
+            <span class="btn-text">Cards</span>
           </button>
         </div>
+        <div class="results-info">
+          {{ filteredEquipments.length }} equipamento{{ filteredEquipments.length !== 1 ? 's' : '' }} encontrado{{ filteredEquipments.length !== 1 ? 's' : '' }}
+        </div>
       </div>
-      
-      <div v-if="viewMode === 'grid'" class="equipment-grid">
+
+      <!-- Cards View -->
+      <div v-if="viewMode === 'cards'" class="equipment-grid">
         <div 
-          v-for="equipment in filteredEquipments" 
+          v-for="equipment in filteredEquipments"
           :key="equipment.id"
           class="equipment-card"
           @click="viewEquipment(equipment)"
@@ -142,7 +143,7 @@
               {{ getStatusText(equipment.status) }}
             </div>
           </div>
-          
+
           <div class="card-body">
             <div class="equipment-details">
               <div class="detail-item">
@@ -180,11 +181,11 @@
               </div>
             </div>
           </div>
-          
+
           <div class="card-footer">
             <div class="equipment-actions">
               <button 
-                class="action-btn secondary" 
+                class="action-btn secondary"
                 @click.stop="viewEquipment(equipment)"
                 title="Ver detalhes"
               >
@@ -192,24 +193,33 @@
               </button>
               <button 
                 v-if="canManageEquipments"
-                class="action-btn primary" 
+                class="action-btn primary"
                 @click.stop="editEquipment(equipment)"
                 title="Editar"
               >
                 <font-awesome-icon :icon="['fas', 'edit']" />
               </button>
               <button 
-                class="action-btn warning" 
+                class="action-btn warning"
                 @click.stop="newMaintenance(equipment)"
                 title="Nova manutenção"
               >
                 <font-awesome-icon :icon="['fas', 'wrench']" />
               </button>
+              <button 
+                v-if="canManageEquipments"
+                class="action-btn danger"
+                @click.stop="confirmDeleteEquipment(equipment)"
+                title="Excluir equipamento"
+              >
+                <font-awesome-icon :icon="['fas', 'trash']" />
+              </button>
             </div>
           </div>
         </div>
       </div>
-      
+
+      <!-- Table View -->
       <div v-else class="equipment-table">
         <div class="table-container">
           <table class="table">
@@ -264,6 +274,9 @@
                     <button class="action-btn warning" @click="newMaintenance(equipment)" title="Nova manutenção">
                       <font-awesome-icon :icon="['fas', 'wrench']" />
                     </button>
+                    <button v-if="canManageEquipments" class="action-btn danger" @click="confirmDeleteEquipment(equipment)" title="Excluir equipamento">
+                      <font-awesome-icon :icon="['fas', 'trash']" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -294,7 +307,7 @@
                 <div class="form-group">
                   <label class="form-label">Nome do Equipamento *</label>
                   <input 
-                    type="text" 
+                    type="text"
                     class="form-input"
                     v-model="equipmentForm.name"
                     placeholder="Ex: Computador Dell OptiPlex"
@@ -304,7 +317,7 @@
                 <div class="form-group">
                   <label class="form-label">Código Interno *</label>
                   <input 
-                    type="text" 
+                    type="text"
                     class="form-input"
                     v-model="equipmentForm.internalCode"
                     placeholder="Ex: EQ001"
@@ -334,14 +347,14 @@
                 </div>
               </div>
             </div>
-            
+
             <div class="form-section">
               <h3 class="section-title">Especificações</h3>
               <div class="form-grid">
                 <div class="form-group">
                   <label class="form-label">Marca *</label>
                   <input 
-                    type="text" 
+                    type="text"
                     class="form-input"
                     v-model="equipmentForm.brand"
                     placeholder="Ex: Dell"
@@ -351,7 +364,7 @@
                 <div class="form-group">
                   <label class="form-label">Modelo *</label>
                   <input 
-                    type="text" 
+                    type="text"
                     class="form-input"
                     v-model="equipmentForm.model"
                     placeholder="Ex: OptiPlex 7090"
@@ -364,7 +377,7 @@
                 <div class="form-group">
                   <label class="form-label">Número de Série</label>
                   <input 
-                    type="text" 
+                    type="text"
                     class="form-input"
                     v-model="equipmentForm.serialNumber"
                     placeholder="Ex: ABC123456789"
@@ -373,7 +386,7 @@
                 <div class="form-group">
                   <label class="form-label">Patrimônio</label>
                   <input 
-                    type="text" 
+                    type="text"
                     class="form-input"
                     v-model="equipmentForm.patrimonyNumber"
                     placeholder="Ex: PAT001"
@@ -381,14 +394,14 @@
                 </div>
               </div>
             </div>
-            
+
             <div class="form-section">
               <h3 class="section-title">Informações Comerciais</h3>
               <div class="form-grid">
                 <div class="form-group">
                   <label class="form-label">Data de Compra</label>
                   <input 
-                    type="date" 
+                    type="date"
                     class="form-input"
                     v-model="equipmentForm.purchaseDate"
                   />
@@ -396,7 +409,7 @@
                 <div class="form-group">
                   <label class="form-label">Garantia até</label>
                   <input 
-                    type="date" 
+                    type="date"
                     class="form-input"
                     v-model="equipmentForm.warrantyUntil"
                   />
@@ -407,7 +420,7 @@
                 <div class="form-group">
                   <label class="form-label">Valor de Compra</label>
                   <input 
-                    type="number" 
+                    type="number"
                     step="0.01"
                     class="form-input"
                     v-model="equipmentForm.purchaseValue"
@@ -424,7 +437,7 @@
                 </div>
               </div>
             </div>
-            
+
             <div class="form-section">
               <h3 class="section-title">Observações</h3>
               <div class="form-group">
@@ -437,7 +450,7 @@
                 ></textarea>
               </div>
             </div>
-            
+
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" @click="closeModal">
                 Cancelar
@@ -570,6 +583,90 @@
                 <font-awesome-icon :icon="['fas', 'edit']" />
                 Editar
               </button>
+              <button v-if="canManageEquipments" class="btn btn-danger" @click="confirmDeleteFromDetails">
+                <font-awesome-icon :icon="['fas', 'trash']" />
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Delete Confirmation Modal -->
+    <transition name="modal-fade">
+      <div v-if="showDeleteModal" class="modal-overlay" @click="closeDeleteModal">
+        <div class="modal delete-modal" @click.stop>
+          <div class="modal-header">
+            <div class="modal-title">
+              <h2>Confirmar Exclusão</h2>
+              <p>Esta ação não pode ser desfeita</p>
+            </div>
+            <button class="modal-close" @click="closeDeleteModal">
+              <font-awesome-icon :icon="['fas', 'times']" />
+            </button>
+          </div>
+          
+          <div class="modal-body" v-if="equipmentToDelete">
+            <div class="delete-warning">
+              <div class="warning-icon">
+                <font-awesome-icon :icon="['fas', 'exclamation-triangle']" />
+              </div>
+              <div class="warning-content">
+                <h3>Tem certeza que deseja excluir este equipamento?</h3>
+                <p class="equipment-info">
+                  <strong>{{ equipmentToDelete.name }}</strong><br>
+                  Código: {{ equipmentToDelete.internalCode }}
+                </p>
+                <p class="warning-text">
+                  Esta ação irá remover permanentemente o equipamento e todos os dados relacionados.
+                </p>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>Motivo da exclusão *</h4>
+              <div class="form-group">
+                <select v-model="deleteReason" class="form-select" required>
+                  <option value="">Selecione o motivo</option>
+                  <option value="vendido">Equipamento vendido</option>
+                  <option value="descartado">Equipamento descartado</option>
+                  <option value="roubado">Equipamento roubado/perdido</option>
+                  <option value="transferido">Transferido para outra unidade</option>
+                  <option value="defeito">Defeito irreparável</option>
+                  <option value="obsoleto">Equipamento obsoleto</option>
+                  <option value="outro">Outro motivo</option>
+                </select>
+              </div>
+              
+              <div class="form-group" v-if="deleteReason">
+                <label class="form-label">Observações adicionais</label>
+                <textarea 
+                  v-model="deleteNotes"
+                  class="form-textarea"
+                  rows="3"
+                  placeholder="Descreva detalhes sobre a exclusão..."
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" @click="closeDeleteModal">
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-danger" 
+                @click="deleteEquipment"
+                :disabled="!deleteReason || isDeleting"
+              >
+                <font-awesome-icon 
+                  v-if="isDeleting"
+                  :icon="['fas', 'spinner']" 
+                  class="loading-icon"
+                />
+                {{ isDeleting ? 'Excluindo...' : 'Confirmar Exclusão' }}
+              </button>
             </div>
           </div>
         </div>
@@ -583,12 +680,15 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useEquipments } from '../composables/useEquipments'
 import { useStores } from '../composables/useStores'
-import { 
-  collection, 
+import {
+  collection,
   onSnapshot,
   query,
   orderBy,
-  Unsubscribe
+  Unsubscribe,
+  doc,
+  updateDoc,
+  serverTimestamp
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Equipment } from '../types'
@@ -599,11 +699,20 @@ const { stores, loadStores } = useStores()
 
 const showAddModal = ref(false)
 const showDetailsModal = ref(false)
+const showDeleteModal = ref(false)
 const editingEquipment = ref<Equipment | null>(null)
 const selectedEquipment = ref<Equipment | null>(null)
+const equipmentToDelete = ref<Equipment | null>(null)
 const isSaving = ref(false)
 const isExporting = ref(false)
-const viewMode = ref('grid')
+const isDeleting = ref(false)
+
+// View mode with localStorage persistence
+const viewMode = ref(localStorage.getItem('equipment-view-mode') || 'cards')
+
+// Delete form
+const deleteReason = ref('')
+const deleteNotes = ref('')
 
 // Filters
 const searchQuery = ref('')
@@ -641,7 +750,7 @@ const filteredEquipments = computed(() => {
 
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(equipment => 
+    filtered = filtered.filter(equipment =>
       equipment.name.toLowerCase().includes(query) ||
       equipment.internalCode.toLowerCase().includes(query) ||
       equipment.serialNumber?.toLowerCase().includes(query) ||
@@ -682,6 +791,11 @@ const availableTypes = computed(() => {
 const storeOptions = computed(() => {
   return stores.value.filter(store => store.status === 'ativo')
 })
+
+const setViewMode = (mode: 'table' | 'cards') => {
+  viewMode.value = mode
+  localStorage.setItem('equipment-view-mode', mode)
+}
 
 const getStatusText = (status: string) => {
   const statusMap: Record<string, string> = {
@@ -739,6 +853,11 @@ const resetForm = () => {
   }
 }
 
+const resetDeleteForm = () => {
+  deleteReason.value = ''
+  deleteNotes.value = ''
+}
+
 const closeModal = () => {
   showAddModal.value = false
   editingEquipment.value = null
@@ -748,6 +867,12 @@ const closeModal = () => {
 const closeDetailsModal = () => {
   showDetailsModal.value = false
   selectedEquipment.value = null
+}
+
+const closeDeleteModal = () => {
+  showDeleteModal.value = false
+  equipmentToDelete.value = null
+  resetDeleteForm()
 }
 
 const viewEquipment = (equipment: Equipment) => {
@@ -782,6 +907,42 @@ const editFromDetails = () => {
   }
 }
 
+const confirmDeleteEquipment = (equipment: Equipment) => {
+  equipmentToDelete.value = equipment
+  showDeleteModal.value = true
+}
+
+const confirmDeleteFromDetails = () => {
+  if (selectedEquipment.value) {
+    equipmentToDelete.value = selectedEquipment.value
+    closeDetailsModal()
+    showDeleteModal.value = true
+  }
+}
+
+const deleteEquipment = async () => {
+  if (!equipmentToDelete.value || !deleteReason.value) return
+
+  isDeleting.value = true
+  try {
+    // Instead of actually deleting, we'll mark as deleted with reason
+    await updateDoc(doc(db, 'equipments', equipmentToDelete.value.id), {
+      status: 'excluido',
+      deletedAt: serverTimestamp(),
+      deleteReason: deleteReason.value,
+      deleteNotes: deleteNotes.value,
+      updatedAt: serverTimestamp()
+    })
+
+    console.log('✅ Equipamento marcado como excluído:', equipmentToDelete.value.id)
+    closeDeleteModal()
+  } catch (error) {
+    console.error('❌ Erro ao excluir equipamento:', error)
+  } finally {
+    isDeleting.value = false
+  }
+}
+
 const newMaintenance = (equipment: Equipment) => {
   // TODO: Implement new maintenance modal
   console.log('New maintenance for:', equipment)
@@ -790,7 +951,6 @@ const newMaintenance = (equipment: Equipment) => {
 const exportData = async () => {
   isExporting.value = true
   try {
-    // TODO: Implement export functionality
     const data = filteredEquipments.value.map(eq => ({
       Nome: eq.name,
       'Código Interno': eq.internalCode,
@@ -806,14 +966,14 @@ const exportData = async () => {
       'Valor de Compra': eq.purchaseValue ? formatCurrency(eq.purchaseValue) : '',
       Observações: eq.notes || ''
     }))
-    
+
     // Create CSV content
     const headers = Object.keys(data[0] || {})
     const csvContent = [
       headers.join(','),
       ...data.map(row => headers.map(header => `"${row[header as keyof typeof row] || ''}"`).join(','))
     ].join('\n')
-    
+
     // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -824,7 +984,7 @@ const exportData = async () => {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
     await new Promise(resolve => setTimeout(resolve, 1000))
   } catch (error) {
     console.error('Error exporting data:', error)
@@ -846,7 +1006,7 @@ const saveEquipment = async () => {
     } else {
       await addEquipment(equipmentData)
     }
-    
+
     closeModal()
   } catch (error) {
     console.error('Error saving equipment:', error)
@@ -860,12 +1020,15 @@ const setupRealtimeListener = () => {
   equipmentUnsubscribe = onSnapshot(
     query(collection(db, 'equipments'), orderBy('createdAt', 'desc')),
     (snapshot) => {
-      equipments.value = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      })) as Equipment[]
+      // Filter out deleted equipment
+      equipments.value = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        }))
+        .filter(equipment => equipment.status !== 'excluido') as Equipment[]
     },
     (error) => {
       console.error('Error listening to equipment changes:', error)
@@ -1056,7 +1219,7 @@ onUnmounted(() => {
   gap: var(--space-4);
 }
 
-.content-header {
+.view-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1065,26 +1228,10 @@ onUnmounted(() => {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-gray-100);
+  margin-bottom: var(--space-4);
 }
 
-.results-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.results-count {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-black);
-}
-
-.results-text {
-  color: var(--color-gray-600);
-  font-size: var(--font-size-base);
-}
-
-.view-controls {
+.view-toggle {
   display: flex;
   gap: var(--space-1);
   background: var(--color-gray-100);
@@ -1092,7 +1239,7 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
 }
 
-.view-btn {
+.toggle-btn {
   padding: var(--space-2) var(--space-3);
   border: none;
   background: transparent;
@@ -1100,13 +1247,22 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.view-btn.active {
+.toggle-btn.active {
   background: var(--color-white);
   color: var(--color-black);
   box-shadow: var(--shadow-sm);
+}
+
+.results-info {
+  color: var(--color-gray-600);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 .equipment-grid {
@@ -1313,6 +1469,18 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
+.action-btn.danger {
+  background: var(--color-error-light);
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.action-btn.danger:hover {
+  background: var(--color-error);
+  color: var(--color-white);
+  transform: translateY(-1px);
+}
+
 /* Table View */
 .equipment-table {
   background: var(--color-white);
@@ -1442,6 +1610,10 @@ onUnmounted(() => {
   max-width: 900px;
 }
 
+.delete-modal {
+  max-width: 600px;
+}
+
 @keyframes modalEnter {
   to {
     transform: scale(1);
@@ -1518,12 +1690,100 @@ onUnmounted(() => {
   gap: var(--space-4);
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-700);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  padding: var(--space-3);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--color-black);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
 .modal-actions {
   display: flex;
   gap: var(--space-3);
   justify-content: flex-end;
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-gray-100);
+}
+
+/* Delete Modal */
+.delete-warning {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-error-light);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-error);
+  margin-bottom: var(--space-4);
+}
+
+.warning-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background: var(--color-error);
+  color: var(--color-white);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xl);
+}
+
+.warning-content h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-error);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.equipment-info {
+  background: var(--color-white);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  margin: var(--space-3) 0;
+  border: 1px solid var(--color-gray-200);
+}
+
+.warning-text {
+  color: var(--color-gray-700);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  margin: var(--space-2) 0 0 0;
+}
+
+.form-section h4 {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-black);
+  margin: 0 0 var(--space-3) 0;
 }
 
 /* Details Modal */
@@ -1621,6 +1881,72 @@ onUnmounted(() => {
   border-top: 1px solid var(--color-gray-100);
 }
 
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-gray-800);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+.btn-secondary:hover {
+  background: var(--color-gray-200);
+  color: var(--color-black);
+}
+
+.btn-danger {
+  background: var(--color-error);
+  color: var(--color-white);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-error-dark);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-gray-600);
+  border: 1px solid var(--color-gray-200);
+}
+
+.btn-ghost:hover {
+  background: var(--color-gray-50);
+  color: var(--color-black);
+}
+
+.btn-sm {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
 /* Animations */
 .modal-fade-enter-active,
 .modal-fade-leave-active {
@@ -1690,7 +2016,7 @@ onUnmounted(() => {
     flex-direction: column;
   }
   
-  .content-header {
+  .view-controls {
     flex-direction: column;
     gap: var(--space-3);
     align-items: stretch;

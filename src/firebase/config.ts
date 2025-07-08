@@ -3,8 +3,8 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth"
 import { getFirestore } from "firebase/firestore"
 import { getStorage } from "firebase/storage"
 
+// Configurações do Firebase (usando variáveis de ambiente)
 const firebaseConfig = {
-  // Replace with your Firebase config
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -13,13 +13,22 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+// Inicializa o app Firebase
 const app = initializeApp(firebaseConfig)
 
+// Inicializa os serviços
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
-export const googleProvider = new GoogleAuthProvider()
 
-// Configure Google provider
+// Configura o provedor Google
+export const googleProvider = new GoogleAuthProvider()
 googleProvider.addScope("email")
 googleProvider.addScope("profile")
+
+// Verificação segura de ambiente de desenvolvimento (sem acessar internals do Firebase)
+if (import.meta.env.DEV && location.hostname !== "localhost") {
+  console.warn("⚠️ Atenção: Você está em modo DEV, mas não está rodando no localhost.")
+}
+
+export { app }

@@ -18,14 +18,14 @@
         </div>
       </div>
     </div>
-    
+
     <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner">
         <font-awesome-icon :icon="['fas', 'cogs']" class="loading-icon" />
       </div>
       <p>Carregando dados do dashboard...</p>
     </div>
-    
+
     <div v-else class="dashboard-content">
       <!-- Main Stats Grid -->
       <div class="stats-grid">
@@ -38,7 +38,7 @@
           :clickable="true"
           @click="$router.push('/equipamentos')"
         />
-        
+
         <StatsCard
           :icon="['fas', 'wrench']"
           label="Em Manutenção"
@@ -48,7 +48,7 @@
           :clickable="true"
           @click="$router.push('/manutencoes')"
         />
-        
+
         <StatsCard
           :icon="['fas', 'exclamation-triangle']"
           label="Garantias Vencendo"
@@ -58,7 +58,7 @@
           :trend="warrantyTrend"
           :clickable="true"
         />
-        
+
         <StatsCard
           :icon="['fas', 'dollar-sign']"
           label="Custos do Mês"
@@ -71,7 +71,7 @@
           @click="$router.push('/relatorios')"
         />
       </div>
-      
+
       <!-- Secondary Stats -->
       <div class="secondary-stats">
         <StatsCard
@@ -83,7 +83,7 @@
           :clickable="true"
           @click="$router.push('/lojas')"
         />
-        
+
         <StatsCard
           :icon="['fas', 'building']"
           label="Empresas Parceiras"
@@ -93,7 +93,7 @@
           :clickable="true"
           @click="$router.push('/empresas')"
         />
-        
+
         <StatsCard
           :icon="['fas', 'users']"
           label="Usuários Ativos"
@@ -104,7 +104,7 @@
           @click="canManageUsers && $router.push('/usuarios')"
         />
       </div>
-      
+
       <!-- Main Content Grid -->
       <div class="dashboard-grid">
         <!-- Equipment by Store Chart -->
@@ -132,8 +132,8 @@
               </button>
             </div>
             <div v-else class="store-chart">
-              <div 
-                v-for="(count, store) in stats.equipmentsByStore" 
+              <div
+                v-for="(count, store) in stats.equipmentsByStore"
                 :key="store"
                 class="store-bar"
               >
@@ -142,8 +142,8 @@
                   <div class="store-count">{{ count }} equipamentos</div>
                 </div>
                 <div class="bar-container">
-                  <div 
-                    class="bar-fill" 
+                  <div
+                    class="bar-fill"
                     :style="{ width: `${(count / maxEquipmentCount) * 100}%` }"
                   ></div>
                 </div>
@@ -151,7 +151,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Recent Maintenances -->
         <div class="dashboard-card">
           <div class="card-header">
@@ -174,8 +174,8 @@
               </button>
             </div>
             <div v-else class="maintenance-timeline">
-              <div 
-                v-for="maintenance in recentMaintenances" 
+              <div
+                v-for="maintenance in recentMaintenances"
                 :key="maintenance.id"
                 class="timeline-item"
               >
@@ -187,11 +187,14 @@
                       {{ maintenance.type }}
                     </span>
                   </div>
-                  <p class="maintenance-description">{{ maintenance.description }}</p>
+                  <p class="maintenance-description">{{ maintenance.description || 'Sem descrição' }}</p>
                   <div class="maintenance-meta">
                     <span class="maintenance-date">{{ formatDate(maintenance.startDate) }}</span>
                     <span class="maintenance-status" :class="maintenance.status">
                       {{ getStatusText(maintenance.status) }}
+                    </span>
+                    <span v-if="maintenance.cost" class="maintenance-cost">
+                      {{ formatCurrency(maintenance.cost) }}
                     </span>
                   </div>
                 </div>
@@ -199,7 +202,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Alerts and Notifications -->
         <div class="dashboard-card alerts-card">
           <div class="card-header">
@@ -219,10 +222,10 @@
               <p>Nenhum alerta no momento</p>
             </div>
             <div v-else class="alerts-list">
-              <div 
-                v-for="(alert, index) in alerts" 
+              <div
+                v-for="(alert, index) in alerts"
                 :key="index"
-                class="alert-item" 
+                class="alert-item"
                 :class="alert.type"
               >
                 <div class="alert-icon">
@@ -240,7 +243,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Quick Actions -->
         <div class="dashboard-card actions-card">
           <div class="card-header">
@@ -260,7 +263,7 @@
                   <p>Localizar equipamentos no sistema</p>
                 </div>
               </button>
-              
+
               <button class="action-item" @click="$router.push('/relatorios')" v-if="canViewReports">
                 <div class="action-icon success">
                   <font-awesome-icon :icon="['fas', 'file-pdf']" />
@@ -270,7 +273,7 @@
                   <p>Criar relatórios personalizados</p>
                 </div>
               </button>
-              
+
               <button class="action-item" @click="$router.push('/lojas')">
                 <div class="action-icon warning">
                   <font-awesome-icon :icon="['fas', 'store']" />
@@ -280,7 +283,7 @@
                   <p>Administrar unidades</p>
                 </div>
               </button>
-              
+
               <button class="action-item" @click="$router.push('/empresas')">
                 <div class="action-icon secondary">
                   <font-awesome-icon :icon="['fas', 'building']" />
@@ -299,20 +302,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useDashboard } from '../composables/useDashboard'
 import StatsCard from '../components/StatsCard.vue'
-import { 
-  collection, 
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-  where,
-  Unsubscribe
-} from 'firebase/firestore'
-import { db } from '../firebase/config'
 
 const { canViewReports, canManageUsers } = useAuth()
 const { stats, recentMaintenances, alerts, isLoading, loadDashboardData } = useDashboard()
@@ -322,19 +315,13 @@ const selectedPeriod = ref('30')
 const warrantyTrend = ref(0)
 const costTrend = ref(0)
 
-// Real-time listeners
-let equipmentUnsubscribe: Unsubscribe | null = null
-let maintenanceUnsubscribe: Unsubscribe | null = null
-let storeUnsubscribe: Unsubscribe | null = null
-let companyUnsubscribe: Unsubscribe | null = null
-let userUnsubscribe: Unsubscribe | null = null
-
 const maxEquipmentCount = computed(() => {
   const counts = Object.values(stats.value.equipmentsByStore)
   return Math.max(...counts, 1)
 })
 
 const formatDate = (date: string | Date) => {
+  if (!date) return 'Data não informada'
   const dateObj = typeof date === 'string' ? new Date(date) : date
   return dateObj.toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -349,10 +336,17 @@ const formatTime = (time: Date) => {
   const minutes = Math.floor(diff / (1000 * 60))
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
+
   if (minutes < 60) return `${minutes}min atrás`
   if (hours < 24) return `${hours}h atrás`
   return `${days}d atrás`
+}
+
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value || 0)
 }
 
 const getStatusText = (status: string) => {
@@ -367,219 +361,27 @@ const getStatusText = (status: string) => {
 const refreshData = async () => {
   isRefreshing.value = true
   try {
+    console.log('🔄 Atualizando dados do dashboard...')
     await loadDashboardData()
-    // Simulate loading time for better UX
+    // Simular tempo de carregamento para melhor UX
     await new Promise(resolve => setTimeout(resolve, 1000))
+    console.log('✅ Dados atualizados com sucesso!')
   } finally {
     isRefreshing.value = false
   }
 }
 
 const clearAllAlerts = () => {
-  alerts.value = []
+  alerts.value.splice(0)
 }
 
 const dismissAlert = (index: number) => {
   alerts.value.splice(index, 1)
 }
 
-// Setup real-time listeners
-const setupRealtimeListeners = () => {
-  // Listen to equipment changes
-  equipmentUnsubscribe = onSnapshot(
-    query(collection(db, 'equipments')),
-    (snapshot) => {
-      stats.value.totalEquipments = snapshot.size
-      
-      // Update equipment by store
-      const equipmentsByStore: Record<string, number> = {}
-      snapshot.docs.forEach(doc => {
-        const data = doc.data()
-        const store = data.store || 'Sem loja'
-        equipmentsByStore[store] = (equipmentsByStore[store] || 0) + 1
-      })
-      stats.value.equipmentsByStore = equipmentsByStore
-      
-      // Count in maintenance
-      const inMaintenance = snapshot.docs.filter(doc => doc.data().status === 'manutencao')
-      stats.value.inMaintenanceCount = inMaintenance.length
-      
-      // Count warranty expiring soon (next 30 days)
-      const today = new Date()
-      const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-      const expiringSoon = snapshot.docs.filter(doc => {
-        const warrantyUntil = doc.data().warrantyUntil
-        if (!warrantyUntil) return false
-        const warrantyDate = new Date(warrantyUntil)
-        return warrantyDate >= today && warrantyDate <= thirtyDaysFromNow
-      })
-      stats.value.warrantyExpiringSoon = expiringSoon.length
-      
-      // Generate alerts based on data
-      generateAlerts()
-    },
-    (error) => {
-      console.error('Error listening to equipment changes:', error)
-    }
-  )
-  
-  // Listen to maintenance changes
-  maintenanceUnsubscribe = onSnapshot(
-    query(
-      collection(db, 'maintenances'),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    ),
-    async (snapshot) => {
-      const maintenancesList = await Promise.all(
-        snapshot.docs.map(async (doc) => {
-          const data = doc.data()
-          
-          // Get equipment name
-          let equipmentName = 'Equipamento não identificado'
-          if (data.equipmentId) {
-            try {
-              const equipmentQuery = query(
-                collection(db, 'equipments'),
-                where('__name__', '==', data.equipmentId)
-              )
-              // For simplicity, we'll use the equipment ID as name for now
-              // In a real implementation, you'd fetch the actual equipment document
-              equipmentName = data.equipmentId
-            } catch (error) {
-              console.error('Error fetching equipment name:', error)
-            }
-          }
-          
-          return {
-            id: doc.id,
-            ...data,
-            equipmentName,
-            startDate: data.startDate?.toDate?.() || new Date(),
-            createdAt: data.createdAt?.toDate?.() || new Date(),
-          }
-        })
-      )
-      
-      recentMaintenances.value = maintenancesList
-      
-      // Calculate monthly maintenance cost
-      const currentMonth = new Date().getMonth()
-      const currentYear = new Date().getFullYear()
-      const monthlyMaintenances = snapshot.docs.filter(doc => {
-        const createdAt = doc.data().createdAt?.toDate?.() || new Date()
-        return createdAt.getMonth() === currentMonth && createdAt.getFullYear() === currentYear
-      })
-      
-      const monthlyCost = monthlyMaintenances.reduce((total, doc) => {
-        return total + (doc.data().cost || 0)
-      }, 0)
-      
-      stats.value.monthlyMaintenanceCost = monthlyCost
-    },
-    (error) => {
-      console.error('Error listening to maintenance changes:', error)
-    }
-  )
-  
-  // Listen to store changes
-  storeUnsubscribe = onSnapshot(
-    query(collection(db, 'stores')),
-    (snapshot) => {
-      const activeStores = snapshot.docs.filter(doc => doc.data().status === 'ativo')
-      stats.value.totalStores = activeStores.length
-    },
-    (error) => {
-      console.error('Error listening to store changes:', error)
-    }
-  )
-  
-  // Listen to company changes
-  companyUnsubscribe = onSnapshot(
-    query(collection(db, 'companies')),
-    (snapshot) => {
-      const activeCompanies = snapshot.docs.filter(doc => doc.data().status === 'ativo')
-      stats.value.totalCompanies = activeCompanies.length
-    },
-    (error) => {
-      console.error('Error listening to company changes:', error)
-    }
-  )
-  
-  // Listen to user changes
-  userUnsubscribe = onSnapshot(
-    query(collection(db, 'users')),
-    (snapshot) => {
-      stats.value.totalUsers = snapshot.size
-    },
-    (error) => {
-      console.error('Error listening to user changes:', error)
-    }
-  )
-}
-
-const generateAlerts = () => {
-  const alertsList = []
-  
-  // Warranty expiring alerts
-  if (stats.value.warrantyExpiringSoon > 0) {
-    alertsList.push({
-      type: 'warning',
-      icon: ['fas', 'exclamation-triangle'],
-      title: 'Garantias Vencendo',
-      message: `${stats.value.warrantyExpiringSoon} equipamentos com garantia vencendo em 30 dias`,
-      time: new Date(),
-    })
-  }
-  
-  // Equipment in maintenance alerts
-  if (stats.value.inMaintenanceCount > 0) {
-    alertsList.push({
-      type: 'info',
-      icon: ['fas', 'wrench'],
-      title: 'Equipamentos em Manutenção',
-      message: `${stats.value.inMaintenanceCount} equipamentos em manutenção`,
-      time: new Date(),
-    })
-  }
-  
-  // High monthly cost alert
-  if (stats.value.monthlyMaintenanceCost > 5000) {
-    alertsList.push({
-      type: 'error',
-      icon: ['fas', 'dollar-sign'],
-      title: 'Custos Elevados',
-      message: `Custos de manutenção do mês: R$ ${stats.value.monthlyMaintenanceCost.toFixed(2)}`,
-      time: new Date(),
-    })
-  }
-  
-  // No equipment alert
-  if (stats.value.totalEquipments === 0) {
-    alertsList.push({
-      type: 'info',
-      icon: ['fas', 'desktop'],
-      title: 'Nenhum Equipamento',
-      message: 'Cadastre equipamentos para começar a usar o sistema',
-      time: new Date(),
-    })
-  }
-  
-  alerts.value = alertsList
-}
-
 onMounted(() => {
+  console.log('🚀 Montando Dashboard...')
   loadDashboardData()
-  setupRealtimeListeners()
-})
-
-onUnmounted(() => {
-  // Clean up listeners
-  if (equipmentUnsubscribe) equipmentUnsubscribe()
-  if (maintenanceUnsubscribe) maintenanceUnsubscribe()
-  if (storeUnsubscribe) storeUnsubscribe()
-  if (companyUnsubscribe) companyUnsubscribe()
-  if (userUnsubscribe) userUnsubscribe()
 })
 </script>
 
@@ -907,6 +709,12 @@ onUnmounted(() => {
   color: var(--color-success);
 }
 
+.maintenance-cost {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-success);
+}
+
 .alerts-list {
   display: flex;
   flex-direction: column;
@@ -1063,7 +871,7 @@ onUnmounted(() => {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .actions-grid {
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
@@ -1073,69 +881,69 @@ onUnmounted(() => {
   .dashboard {
     padding: var(--space-3);
   }
-  
+
   .header-content {
     flex-direction: column;
     gap: var(--space-4);
     align-items: stretch;
     padding: var(--space-4);
   }
-  
+
   .header-text h1 {
     font-size: var(--font-size-2xl);
   }
-  
+
   .header-actions {
     justify-content: center;
   }
-  
+
   .btn-text {
     display: none;
   }
-  
+
   .stats-grid {
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: var(--space-3);
   }
-  
+
   .secondary-stats {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--space-3);
   }
-  
+
   .dashboard-grid {
     gap: var(--space-4);
   }
-  
+
   .card-header {
     flex-direction: column;
     gap: var(--space-3);
     align-items: stretch;
     padding: var(--space-4);
   }
-  
+
   .card-body {
     padding: var(--space-4);
   }
-  
+
   .maintenance-header {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .maintenance-meta {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .actions-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .action-item {
     padding: var(--space-3);
   }
-  
+
   .action-icon {
     width: 40px;
     height: 40px;
@@ -1147,30 +955,30 @@ onUnmounted(() => {
   .dashboard {
     padding: var(--space-2);
   }
-  
+
   .stats-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .secondary-stats {
     grid-template-columns: 1fr;
   }
-  
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .store-info {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-1);
   }
-  
+
   .alert-item {
     flex-direction: column;
     text-align: center;
   }
-  
+
   .alert-dismiss {
     align-self: flex-end;
     position: absolute;
@@ -1184,12 +992,12 @@ onUnmounted(() => {
   .dashboard {
     background: var(--color-gray-900);
   }
-  
+
   .dashboard-card {
     background: var(--color-gray-800);
     border-color: var(--color-gray-700);
   }
-  
+
   .header-content {
     background: var(--color-gray-800);
     border-color: var(--color-gray-700);
