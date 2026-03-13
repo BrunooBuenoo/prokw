@@ -174,8 +174,8 @@
                 <font-awesome-icon :icon="['fas', 'shield-alt']" class="detail-icon" />
                 <div class="detail-content">
                   <span class="detail-label">Garantia</span>
-                  <span class="detail-value" :class="{ 'warranty-expiring': isWarrantyExpiring(equipment.warrantyUntil ?? '') }">
-                    {{ formatDate(equipment.warrantyUntil ?? '') }}
+                  <span :class="{ 'warranty-expiring': isWarrantyExpiring(toDate(equipment.warrantyUntil)) }">
+                    {{ formatDate(toDate(equipment.warrantyUntil)) }}
                   </span>
                 </div>
               </div>
@@ -259,8 +259,8 @@
                   </div>
                 </td>
                 <td>
-                  <span :class="{ 'warranty-expiring': isWarrantyExpiring(equipment.warrantyUntil ?? '') }">
-                    {{ formatDate(equipment.warrantyUntil ?? '') }}
+                  <span :class="{ 'warranty-expiring': isWarrantyExpiring(toDate(equipment.warrantyUntil)) }">
+                    {{ formatDate(toDate(equipment.warrantyUntil)) }}
                   </span>
                 </td>
                 <td>
@@ -552,12 +552,12 @@
                 <div class="details-list">
                   <div class="detail-row" v-if="selectedEquipment.purchaseDate">
                     <span class="detail-label">Data de Compra:</span>
-                    <span class="detail-value">{{ formatDate(selectedEquipment.purchaseDate) }}</span>
+                    <span class="detail-value">{{ formatDate(toDate(selectedEquipment.purchaseDate)) }}</span>
                   </div>
                   <div class="detail-row" v-if="selectedEquipment.warrantyUntil">
                     <span class="detail-label">Garantia até:</span>
-                    <span class="detail-value" :class="{ 'warranty-expiring': isWarrantyExpiring(selectedEquipment.warrantyUntil) }">
-                      {{ formatDate(selectedEquipment.warrantyUntil) }}
+                    <span class="detail-value" :class="{ 'warranty-expiring': isWarrantyExpiring(toDate(selectedEquipment.warrantyUntil)) }">
+                      {{ formatDate(toDate(selectedEquipment.warrantyUntil)) }}
                     </span>
                   </div>
                   <div class="detail-row" v-if="selectedEquipment.purchaseValue">
@@ -680,6 +680,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useEquipments } from '../composables/useEquipments'
 import { useStores } from '../composables/useStores'
+import { toDate, toDateStringSafe, formatDate } from '../util/date'
 import {
   collection,
   onSnapshot,
@@ -806,7 +807,7 @@ const getStatusText = (status: string) => {
   return statusMap[status] || status
 }
 
-const formatDate = (date: string | Date) => {
+const formatDateLocal = (date: string | Date) => {
   if (!date) return 'Não informado'
   const dateObj = typeof date === 'string' ? new Date(date) : date
   return dateObj.toLocaleDateString('pt-BR')
@@ -891,8 +892,8 @@ const editEquipment = (equipment: Equipment) => {
     model: equipment.model,
     serialNumber: equipment.serialNumber || '',
     patrimonyNumber: equipment.patrimonyNumber || '',
-    purchaseDate: equipment.purchaseDate || '',
-    warrantyUntil: equipment.warrantyUntil || '',
+    purchaseDate: toDateStringSafe(equipment.purchaseDate),
+    warrantyUntil: toDateStringSafe(equipment.warrantyUntil),
     purchaseValue: equipment.purchaseValue || 0,
     status: equipment.status,
     notes: equipment.notes || ''
@@ -998,8 +999,12 @@ const saveEquipment = async () => {
   try {
     const equipmentData = {
       ...equipmentForm.value,
-      purchaseValue: Number(equipmentForm.value.purchaseValue) || 0
+      purchaseValue: Number(equipmentForm.value.purchaseValue),
+      status: (['ativo', 'manutencao', 'inativo'].includes(equipmentForm.value.status)
+        ? equipmentForm.value.status
+        : 'ativo') as 'ativo' | 'manutencao' | 'inativo',
     }
+
 
     if (editingEquipment.value && editingEquipment.value.id) {
       await updateEquipment(editingEquipment.value.id, equipmentData)
@@ -1022,13 +1027,17 @@ const setupRealtimeListener = () => {
     (snapshot) => {
       // Filter out deleted equipment
       equipments.value = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        }))
+        .map(doc => {
+          const data = doc.data() as Equipment
+          return {
+            ...data,
+            id: doc.id, // Sobrescreve o id do data se existir
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+          }
+        })
         .filter(equipment => equipment.status !== 'excluido') as Equipment[]
+
     },
     (error) => {
       console.error('Error listening to equipment changes:', error)

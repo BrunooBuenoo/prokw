@@ -1,11 +1,14 @@
+import { Timestamp } from 'firebase/firestore'
+
 export interface User {
   uid: string
   email: string
   name: string
   role: 'admin' | 'tecnico' | 'diretor' | 'visualizador'
   photoURL?: string
-  createdAt?: string
-  lastLogin?: string
+  createdAt?: string | Timestamp
+  lastLogin?: string | Timestamp
+  status?: 'ativo' | 'inativo'
 }
 
 export interface Equipment {
@@ -19,14 +22,15 @@ export interface Equipment {
   patrimonyNumber?: string
   location?: string
   store: string
-  warrantyUntil?: string
-  status: 'ativo' | 'manutencao' | 'inativo'
+  warrantyUntil?: string | Timestamp
+  status: 'ativo' | 'manutencao' | 'inativo' | 'excluido'
   purchaseValue?: number
-  purchaseDate?: string
+  purchaseDate?: string | Timestamp
   invoiceUrl?: string
   notes?: string
-  createdAt: string
-  updatedAt: string
+  createdAt: string | Timestamp
+  updatedAt: string | Timestamp
+  code?: string;
 }
 
 export interface Store {
@@ -40,8 +44,8 @@ export interface Store {
   phone?: string
   manager?: string
   status: 'ativo' | 'inativo'
-  createdAt?: string
-  updatedAt?: string
+  createdAt?: string | Timestamp
+  updatedAt?: string | Timestamp
 }
 
 export interface Company {
@@ -57,8 +61,8 @@ export interface Company {
   contact: string
   services: string[]
   status: 'ativo' | 'inativo'
-  createdAt?: string
-  updatedAt?: string
+  createdAt?: string | Timestamp
+  updatedAt?: string | Timestamp
 }
 
 export interface Maintenance {
@@ -70,14 +74,14 @@ export interface Maintenance {
   companyId?: string
   description: string
   cost: number
-  startDate: string
-  endDate?: string
-  returnDate?: string
+  startDate: string | Timestamp
+  endDate?: string | Timestamp
+  returnDate?: string | Timestamp
   warrantyDays?: number
   status: 'pendente' | 'em-andamento' | 'concluida'
   attachments?: string[]
-  createdAt: string
-  updatedAt: string
+  createdAt: string | Timestamp
+  updatedAt: string | Timestamp
 }
 
 export interface DashboardStats {
@@ -90,4 +94,26 @@ export interface DashboardStats {
   totalUsers: number
   totalStores: number
   totalCompanies: number
+}
+
+export interface Notification {
+  id: string
+  message: string
+  time: Date
+  type: 'info' | 'warning' | 'error' | 'success'
+  icon: string[]
+  read: boolean
+  route: string
+  data?: any
+}
+
+export type SuggestionType = 'Equipamento' | 'Loja' | 'Usuário'
+
+export interface SearchSuggestion {
+  id: string
+  title: string
+  type: SuggestionType
+  icon: [string, string]
+  route: string
+  data: any
 }

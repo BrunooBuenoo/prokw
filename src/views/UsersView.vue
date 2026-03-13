@@ -196,6 +196,19 @@
                 >
                    <font-awesome-icon :icon="['fas', 'trash']" />
                 </button>
+                <div v-if="showDeleteModal" class="modal-overlay">
+                  <div class="modal-box">
+                    <h3>Confirmar Exclusão</h3>
+                    <p>Tem certeza que deseja excluir o usuário <strong>{{ userToDelete?.email }}</strong>?</p>
+
+                    <div class="modal-actions">
+                      <button class="btn cancel" @click="showDeleteModal = false" :disabled="isDeleting">Cancelar</button>
+                      <button class="btn delete" @click="deleteUser" :disabled="isDeleting">
+                        {{ isDeleting ? 'Excluindo...' : 'Confirmar Exclusão' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1375,6 +1388,27 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
   padding: var(--space-4);
+}
+
+.modal-box {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+}
+.modal-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.btn.cancel {
+  background-color: #ccc;
+}
+.btn.delete {
+  background-color: #e74c3c;
+  color: white;
 }
 
 .modal-content {

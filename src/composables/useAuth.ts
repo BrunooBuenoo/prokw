@@ -1,5 +1,3 @@
-"use client"
-
 import { ref, computed, onMounted } from "vue"
 import {
   signInWithEmailAndPassword,
@@ -34,7 +32,7 @@ export function useAuth() {
           email: firebaseUser.email!,
           name: userData.name || firebaseUser.displayName || "Usuário",
           role: userData.role || "visualizador",
-          photoURL: firebaseUser.photoURL,
+          photoURL: firebaseUser.photoURL ?? undefined,
           createdAt: userData.createdAt,
           lastLogin: new Date().toISOString(),
         }
@@ -66,8 +64,8 @@ export function useAuth() {
           uid: firebaseUser.uid,
           email: firebaseUser.email!,
           name: newUserData.name,
-          role: newUserData.role,
-          photoURL: firebaseUser.photoURL,
+          role: newUserData.role as 'admin' | 'tecnico' | 'diretor' | 'visualizador',
+          photoURL: firebaseUser.photoURL ?? undefined,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
         }
@@ -133,7 +131,7 @@ export function useAuth() {
         email: firebaseUser.email!,
         name: userData.name || firebaseUser.displayName || "Usuário",
         role: userData.role || "visualizador",
-        photoURL: firebaseUser.photoURL,
+        photoURL: firebaseUser.photoURL ?? undefined,
         createdAt: userData.createdAt,
         lastLogin: new Date().toISOString(),
       }
@@ -179,7 +177,7 @@ export function useAuth() {
         email: firebaseUser.email!,
         name,
         role: "visualizador",
-        photoURL: firebaseUser.photoURL,
+        photoURL: firebaseUser.photoURL ?? undefined,
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
       }
@@ -237,7 +235,7 @@ export function useAuth() {
               email: firebaseUser.email!,
               name: userData.name || firebaseUser.displayName || "Usuário",
               role: userData.role || "visualizador",
-              photoURL: firebaseUser.photoURL,
+              photoURL: firebaseUser.photoURL ?? undefined,
               createdAt: userData.createdAt,
               lastLogin: userData.lastLogin,
             }

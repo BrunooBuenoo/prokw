@@ -41,6 +41,14 @@ export function useMaintenances() {
 
       const querySnapshot = await getDocs(maintenanceQuery)
 
+      function toIsoString(date: any): string {
+        if (date?.toDate) return date.toDate().toISOString()
+        if (typeof date === 'string') return date
+        if (date instanceof Date) return date.toISOString()
+        return new Date().toISOString()
+      }
+
+
       // Load maintenance data with equipment and company names
       const maintenancesList = await Promise.all(
         querySnapshot.docs.map(async (docSnapshot) => {
@@ -73,12 +81,12 @@ export function useMaintenances() {
           }
 
           return {
-            id: docSnapshot.id,
             ...maintenanceData,
+            id: docSnapshot.id,
             equipmentName,
             companyName,
-            createdAt: maintenanceData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-            updatedAt: maintenanceData.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            createdAt: toIsoString(maintenanceData.createdAt),
+            updatedAt: toIsoString(maintenanceData.updatedAt),
           }
         }),
       )

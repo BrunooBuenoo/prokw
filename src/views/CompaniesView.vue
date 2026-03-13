@@ -642,12 +642,11 @@
 </template>
 
 <script setup lang="ts">
-
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCompanies } from '../composables/useCompanies'
 import type { Company } from '../types'
 
-const { companies, isLoading, loadCompanies, addCompany, updateCompany, unsubscribe } = useCompanies()
+const { companies, isLoading, loadCompanies, addCompany, updateCompany } = useCompanies()
 
 const showAddModal = ref(false)
 const showDetailsModal = ref(false)
@@ -925,11 +924,6 @@ onMounted(() => {
   loadCompanies()
 })
 
-onUnmounted(() => {
-  if (unsubscribe) {
-    unsubscribe()
-  }
-})
 </script>
 
 <style scoped>

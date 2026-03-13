@@ -189,7 +189,13 @@
                   </div>
                   <p class="maintenance-description">{{ maintenance.description || 'Sem descrição' }}</p>
                   <div class="maintenance-meta">
-                    <span class="maintenance-date">{{ formatDate(maintenance.startDate) }}</span>
+                    <span class="maintenance-date">
+                      {{ formatDate(
+                        typeof maintenance.startDate === 'string'
+                          ? maintenance.startDate
+                          : maintenance.startDate.toDate()
+                      ) }}
+                    </span>
                     <span class="maintenance-status" :class="maintenance.status">
                       {{ getStatusText(maintenance.status) }}
                     </span>

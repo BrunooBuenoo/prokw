@@ -2,6 +2,7 @@ import { ref, computed } from "vue"
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore"
 import { db } from "../firebase/config"
 import type { Equipment, Maintenance } from "../types"
+import { toDate } from '../util/date'
 
 interface DashboardStats {
   totalEquipments: number
@@ -123,7 +124,9 @@ export function useDashboard() {
       const activeMaintenances = activeMaintenancesSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      }))
+      })) as Maintenance[]
+
+      
 
       console.log("🔧 Manutenções ativas encontradas:", {
         total: activeMaintenances.length,
@@ -162,8 +165,8 @@ export function useDashboard() {
       const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
       const expiringSoon = equipments.filter((equipment) => {
         if (!equipment.warrantyUntil) return false
-        const warrantyDate = new Date(equipment.warrantyUntil)
-        return warrantyDate >= today && warrantyDate <= thirtyDaysFromNow
+        const warrantyDate = toDate(equipment.warrantyUntil)
+        return warrantyDate && warrantyDate > today && warrantyDate < thirtyDaysFromNow
       })
       stats.value.warrantyExpiringSoon = expiringSoon.length
 
@@ -193,7 +196,7 @@ export function useDashboard() {
 
       const maintenancesList = await Promise.all(
         snapshot.docs.map(async (doc) => {
-          const data = doc.data()
+          const data = doc.data() 
 
           // Buscar nome do equipamento
           let equipmentName = "Equipamento não identificado"

@@ -655,7 +655,7 @@
                       accept=".pdf,.jpg,.jpeg,.png"
                       class="file-input"
                     />
-                    <button type="button" class="btn btn-secondary" @click="$refs.serviceOrderInput.click()">
+                    <button type="button" class="btn btn-secondary" @click="invoiceInput?.click()">
                       <font-awesome-icon :icon="['fas', 'upload']" />
                       Selecionar Arquivo
                     </button>
@@ -679,7 +679,7 @@
                       accept=".pdf,.jpg,.jpeg,.png"
                       class="file-input"
                     />
-                    <button type="button" class="btn btn-secondary" @click="$refs.invoiceInput.click()">
+                    <button type="button" class="btn btn-secondary" @click="invoiceInput?.click()">
                       <font-awesome-icon :icon="['fas', 'upload']" />
                       Selecionar Arquivo
                     </button>
@@ -753,11 +753,12 @@ interface MaintenanceUnit {
 
 interface MaintenanceWithUnits extends Maintenance {
   units: MaintenanceUnit[]
-  attachments?: {
+  serviceData?: {
     serviceOrder?: string
     invoice?: string
   }
 }
+
 
 const { canManageEquipments } = useAuth()
 
@@ -780,6 +781,7 @@ const maintenances = ref<(MaintenanceWithUnits & { equipmentName: string; equipm
 const availableEquipments = ref<Equipment[]>([])
 const availableCompanies = ref<Company[]>([])
 const selectedMaintenance = ref<any>(null)
+const invoiceInput = ref<HTMLInputElement | null>(null);
 
 // Form
 const maintenanceForm = ref({

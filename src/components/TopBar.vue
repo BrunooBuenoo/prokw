@@ -135,6 +135,9 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useEquipments } from '../composables/useEquipments'
 import { useStores } from '../composables/useStores'
+import type { Notification } from '../types'
+import type { SearchSuggestion } from '../types'
+
 import { 
   collection, 
   query, 
@@ -147,6 +150,7 @@ import {
   doc
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
+import type { User } from '../types/index'
 
 const router = useRouter()
 const { currentUser, logout } = useAuth()
@@ -160,15 +164,15 @@ const searchQuery = ref('')
 const isSearchFocused = ref(false)
 const showNotifications = ref(false)
 const showUserMenu = ref(false)
-const notifications = ref([])
-const users = ref([])
+const notifications = ref<Notification[]>([])
+const users = ref<User[]>([])
 
 // Busca em tempo real
 const searchSuggestions = computed(() => {
   if (searchQuery.value.length < 2) return []
   
   const query = searchQuery.value.toLowerCase()
-  const suggestions = []
+  const suggestions: SearchSuggestion[] = []
   
   // Buscar equipamentos
   equipments.value
@@ -241,10 +245,13 @@ const loadInitialData = async () => {
     // Carregar usuários para busca
     const usersQuery = query(collection(db, 'usuarios'), limit(50))
     const usersSnapshot = await getDocs(usersQuery)
-    users.value = usersSnapshot.docs.map(doc => ({
-      uid: doc.id,
-      ...doc.data()
-    }))
+    users.value = usersSnapshot.docs.map(doc => {
+      const data = doc.data() as Omit<User, 'uid'>
+      return {
+        uid: doc.id,
+        ...data
+      }
+    })
     
     // Carregar notificações
     await loadNotifications()
@@ -256,7 +263,7 @@ const loadInitialData = async () => {
 // Carregar notificações baseadas em dados reais
 const loadNotifications = async () => {
   try {
-    const notificationsList = []
+    const notificationsList: Notification[] = []
     
     // Verificar equipamentos com garantia vencendo (próximos 30 dias)
     const thirtyDaysFromNow = new Date()
@@ -316,7 +323,9 @@ const loadNotifications = async () => {
     }
     
     // Ordenar por data (mais recentes primeiro)
-    notifications.value = notificationsList.sort((a, b) => b.time - a.time)
+    notifications.value = notificationsList.sort(
+      (a, b) => b.time.getTime() - a.time.getTime()
+    )
   } catch (error) {
     console.error('Erro ao carregar notificações:', error)
   }
